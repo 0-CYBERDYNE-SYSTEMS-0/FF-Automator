@@ -13,11 +13,18 @@ from gradio_app.src.ui.interface import (
     create_automations_tab,
     create_configuration_tab
 )
+from gradio_app.src.ui.chat_interface import create_chat_tab
 
 def create_interface(app_instance: MacOSUseGradioApp):
     """Create the Gradio interface with all components."""
     with gr.Blocks(title="macOS-use Interface") as demo:
         gr.Markdown("# Make Mac apps accessible for AI agents (Beta)")
+        
+        with gr.Tab("Chat"):
+            chat_components = create_chat_tab(app_instance)
+            chat_history, chat_input, send_button, clear_chat_btn, \
+            save_session_btn, load_session_btn, stop_chat_btn, \
+            session_name_input, session_list, chat_state = chat_components
         
         with gr.Tab("Agent"):
             agent_components = create_agent_tab(app_instance)

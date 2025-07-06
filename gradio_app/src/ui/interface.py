@@ -1,5 +1,6 @@
 import gradio as gr
 from typing import Dict, List, Any
+from .chat_interface import create_chat_tab
 
 def create_agent_tab(app_instance) -> List[gr.components.Component]:
     with gr.Row():
