@@ -39,7 +39,10 @@ def create_interface(app_instance: MacOSUseGradioApp):
         
         with gr.Tab("Configuration"):
             config_components = create_configuration_tab(app_instance)
-            llm_provider, llm_model, api_key, share_terminal_cfg = config_components
+            llm_provider, llm_model, api_key, share_terminal_cfg, \
+            provider_info, model_recommendations, api_help, provider_status, \
+            test_connection_btn, reasoning_provider, coding_provider, chat_provider, \
+            enable_cost_optimization, prefer_free_models, max_cost_per_request, refresh_models_btn = config_components
 
         # Event handlers
         def format_agents_list(agents):
@@ -77,17 +80,116 @@ def create_interface(app_instance: MacOSUseGradioApp):
             return format_agents_list(agents)
 
         def update_provider(provider):
-            # Save the provider preference
-            app_instance.update_llm_preferences(provider, app_instance.llm_models.get(provider, [])[0])
+            # Import helper functions
+            try:
+                from gradio_app.src.ui.interface import _get_provider_info_html, _get_api_help_html, _get_model_recommendations_html
+                from gradio_app.src.models.llm_models import check_provider_availability, get_available_models
+                
+                # Get dynamic models for the provider (especially important for Ollama/LM Studio)
+                models = get_available_models(provider)
+                default_model = models[0] if models else None
+                
+                # Save the provider preference
+                app_instance.update_llm_preferences(provider, default_model)
+                
+                provider_info_html = _get_provider_info_html(provider)
+                api_help_html = _get_api_help_html(provider)
+                model_rec_html = _get_model_recommendations_html(provider, default_model)
+                
+                # Check provider status
+                is_available = check_provider_availability(provider)
+                if is_available:
+                    if provider in ["Ollama", "LM Studio"] and models and "not running" in models[0].lower():
+                        status_html = f"<div style='color: orange;'>⚠️ {models[0]}</div>"
+                    elif provider in ["Ollama", "LM Studio"] and models and "no models" in models[0].lower():
+                        status_html = f"<div style='color: orange;'>⚠️ {models[0]}</div>"
+                    else:
+                        status_html = "<div style='color: green;'>✅ Provider ready</div>"
+                else:
+                    status_html = "<div style='color: orange;'>⚠️ API key needed or service offline</div>"
+                
+            except ImportError:
+                # Fallback - use static models
+                models = app_instance.llm_models.get(provider, [])
+                default_model = models[0] if models else None
+                app_instance.update_llm_preferences(provider, default_model)
+                provider_info_html = f"Provider: {provider}"
+                api_help_html = ""
+                model_rec_html = ""
+                status_html = "<div style='color: gray;'>Status unknown</div>"
+            
             return {
-                llm_model: gr.update(choices=app_instance.llm_models.get(provider, [])),
-                api_key: gr.update(value=app_instance.get_saved_api_key(provider))
+                llm_model: gr.update(choices=models, value=default_model),
+                api_key: gr.update(value=app_instance.get_saved_api_key(provider)),
+                provider_info: gr.update(value=provider_info_html),
+                api_help: gr.update(value=api_help_html),
+                model_recommendations: gr.update(value=model_rec_html),
+                provider_status: gr.update(value=status_html)
             }
             
         def update_model(provider, model):
             # Save the model preference
             app_instance.update_llm_preferences(provider, model)
-            return None
+            
+            # Update model recommendations
+            try:
+                from gradio_app.src.ui.interface import _get_model_recommendations_html
+                model_rec_html = _get_model_recommendations_html(provider, model)
+                return {model_recommendations: gr.update(value=model_rec_html)}
+            except ImportError:
+                return None
+
+        def test_provider_connection(provider, model, api_key):
+            """Test connection to the selected provider"""
+            try:
+                from gradio_app.src.models.llm_models import get_llm, check_provider_availability
+                
+                # First check if provider is available
+                if not check_provider_availability(provider):
+                    return "<div style='color: red;'>❌ Provider not available. Check API key or local service.</div>"
+                
+                # Try to initialize the LLM
+                if not api_key and provider in ["OpenAI", "Anthropic", "Google", "DeepSeek", "OpenRouter"]:
+                    return "<div style='color: orange;'>⚠️ API key required for this provider</div>"
+                
+                llm = get_llm(provider, model, api_key)
+                
+                # Test with a simple message
+                test_response = llm.invoke("Hello, this is a connection test. Please respond with 'Test successful'.")
+                
+                if "test successful" in test_response.content.lower():
+                    return "<div style='color: green;'>✅ Connection successful! Provider is working correctly.</div>"
+                else:
+                    return "<div style='color: green;'>✅ Connection established. Provider responded.</div>"
+                    
+            except Exception as e:
+                error_msg = str(e)
+                if "rate limit" in error_msg.lower():
+                    return "<div style='color: orange;'>⚠️ Rate limit reached. Connection works but try again later.</div>"
+                elif "api key" in error_msg.lower():
+                    return "<div style='color: red;'>❌ Invalid API key. Please check your key.</div>"
+                elif "auth" in error_msg.lower():
+                    return "<div style='color: red;'>❌ Authentication failed. Check API key.</div>"
+                else:
+                    return f"<div style='color: red;'>❌ Connection failed: {error_msg}</div>"
+
+        def refresh_models(provider):
+            """Refresh the model list for the current provider"""
+            try:
+                from gradio_app.src.models.llm_models import get_available_models
+                models = get_available_models(provider)
+                default_model = models[0] if models else None
+                app_instance.update_llm_preferences(provider, default_model)
+                return {
+                    llm_model: gr.update(choices=models, value=default_model)
+                }
+            except Exception as e:
+                # Fallback to static models
+                models = app_instance.llm_models.get(provider, [])
+                default_model = models[0] if models else None
+                return {
+                    llm_model: gr.update(choices=models, value=default_model)
+                }
 
         # Create a wrapper function for run_agent that gets share_terminal from preferences
         async def run_agent_wrapper(task, max_steps, max_actions, llm_provider, llm_model, api_key, share_prompt):
@@ -254,13 +356,27 @@ Only return the refined prompt text, nothing else.
         llm_provider.change(
             fn=update_provider,
             inputs=llm_provider,
-            outputs=[llm_model, api_key]
+            outputs=[llm_model, api_key, provider_info, api_help, model_recommendations, provider_status]
         )
         
         llm_model.change(
             fn=update_model,
             inputs=[llm_provider, llm_model],
-            outputs=None
+            outputs=[model_recommendations]
+        )
+        
+        # Test connection event handler
+        test_connection_btn.click(
+            fn=test_provider_connection,
+            inputs=[llm_provider, llm_model, api_key],
+            outputs=[provider_status]
+        )
+        
+        # Refresh models event handler
+        refresh_models_btn.click(
+            fn=refresh_models,
+            inputs=[llm_provider],
+            outputs=[llm_model]
         )
 
         return demo

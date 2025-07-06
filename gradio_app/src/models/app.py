@@ -168,9 +168,11 @@ class MacOSUseGradioApp:
         # Map provider to environment variable name
         provider_to_env = {
             "OpenAI": "OPENAI_API_KEY",
-            "Anthropic": "ANTHROPIC_API_KEY",
+            "Anthropic": "ANTHROPIC_API_KEY", 
             "Google": "GEMINI_API_KEY",
-            "alibaba": "DEEPSEEK_API_KEY"
+            "DeepSeek": "DEEPSEEK_API_KEY",
+            "OpenRouter": "OPENROUTER_API_KEY",
+            "alibaba": "DEEPSEEK_API_KEY"  # Legacy support
         }
         
         env_var = provider_to_env.get(provider)
@@ -222,7 +224,9 @@ class MacOSUseGradioApp:
             "OpenAI": "OPENAI_API_KEY",
             "Anthropic": "ANTHROPIC_API_KEY",
             "Google": "GEMINI_API_KEY",
-            "alibaba": "DEEPSEEK_API_KEY"
+            "DeepSeek": "DEEPSEEK_API_KEY",
+            "OpenRouter": "OPENROUTER_API_KEY",
+            "alibaba": "DEEPSEEK_API_KEY"  # Legacy support
         }
         env_var = provider_to_env.get(provider)
         return os.getenv(env_var, "") if env_var else ""
@@ -425,17 +429,34 @@ class MacOSUseGradioApp:
                 )
                 return
                 
-            if not api_key:
-                yield (
-                    "API key is required",
-                    gr.update(interactive=True),
-                    gr.update(interactive=False),
-                    gr.update(value="API key is required")
-                )
-                return
+            # Check if API key is required for this provider
+            try:
+                from ..models.llm_models import PROVIDER_CONFIGS
+                config = PROVIDER_CONFIGS.get(llm_provider, {})
+                requires_auth = config.get("requires_auth", True)
+                
+                if requires_auth and not api_key:
+                    yield (
+                        f"API key is required for {llm_provider}",
+                        gr.update(interactive=True),
+                        gr.update(interactive=False),
+                        gr.update(value=f"API key is required for {llm_provider}")
+                    )
+                    return
+            except ImportError:
+                # Fallback - require API key for known cloud providers
+                if not api_key and llm_provider in ["OpenAI", "Anthropic", "Google", "DeepSeek", "OpenRouter"]:
+                    yield (
+                        f"API key is required for {llm_provider}",
+                        gr.update(interactive=True),
+                        gr.update(interactive=False),
+                        gr.update(value=f"API key is required for {llm_provider}")
+                    )
+                    return
             
-            # Save API key to .env file
-            self.save_api_key_to_env(llm_provider, api_key)
+            # Save API key to .env file (if provider requires one)
+            if api_key:
+                self.save_api_key_to_env(llm_provider, api_key)
             
             # Send the prompt to the Google Form/Sheet if requested
             if share_prompt and not share_terminal:

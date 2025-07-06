@@ -177,6 +177,8 @@ class Agent:
 				return 'function_calling'
 			elif self.chat_model_library == 'AzureChatOpenAI':
 				return 'function_calling'
+			elif self.chat_model_library == 'ChatOllama':
+				return None  # Ollama works better with default structured output
 			else:
 				return None
 

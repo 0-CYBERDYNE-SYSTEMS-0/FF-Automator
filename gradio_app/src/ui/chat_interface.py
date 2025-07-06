@@ -166,15 +166,59 @@ def create_chat_tab(app_instance) -> List[gr.components.Component]:
 		"""Execute the agent task asynchronously"""
 		try:
 			# Get current LLM configuration from app instance
-			provider = app_instance.preferences.get("llm_provider", "openai")
-			model = app_instance.preferences.get("llm_model", "gpt-4o")
+			provider = app_instance.preferences.get("llm_provider", "OpenAI")
+			
+			# Get model with proper dynamic detection for local providers
+			saved_model = app_instance.preferences.get("llm_model")
+			if provider in ["Ollama", "LM Studio"]:
+				try:
+					from ..models.llm_models import get_available_models
+					available_models = get_available_models(provider)
+					if available_models and available_models[0]:
+						# Use first available model if saved model isn't available
+						if saved_model not in available_models:
+							model = available_models[0]
+						else:
+							model = saved_model
+					else:
+						model = saved_model or "llama3.2"  # fallback
+				except:
+					model = saved_model or "llama3.2"  # fallback
+			else:
+				model = saved_model or "gpt-4o"
+			
 			api_key = app_instance.get_saved_api_key(provider)
 			
-			if not api_key:
-				error_msg = f"No API key found for {provider}. Please configure it in the Configuration tab."
-				history[-1] = (message, f"❌ {error_msg}")
-				chat_state_value["agent_running"] = False
-				return history, chat_state_value, gr.update(interactive=True), gr.update(interactive=False)
+			# Check if provider requires API key
+			try:
+				from ..models.llm_models import PROVIDER_CONFIGS, check_provider_availability
+				
+				config = PROVIDER_CONFIGS.get(provider, {})
+				requires_auth = config.get("requires_auth", True)
+				is_local = config.get("local_provider", False)
+				
+				# For providers that require auth, check API key
+				if requires_auth and not api_key:
+					error_msg = f"No API key found for {provider}. Please configure it in the Configuration tab."
+					history[-1] = (message, f"❌ {error_msg}")
+					chat_state_value["agent_running"] = False
+					return history, chat_state_value, gr.update(interactive=True), gr.update(interactive=False)
+				
+				# For local providers, check if they're running
+				if is_local and not check_provider_availability(provider):
+					service_name = "Ollama" if provider == "Ollama" else "LM Studio"
+					error_msg = f"{service_name} is not running. Please start {service_name} first."
+					history[-1] = (message, f"❌ {error_msg}")
+					chat_state_value["agent_running"] = False
+					return history, chat_state_value, gr.update(interactive=True), gr.update(interactive=False)
+					
+			except ImportError:
+				# Fallback check for basic providers
+				if not api_key and provider in ["OpenAI", "Anthropic", "Google"]:
+					error_msg = f"No API key found for {provider}. Please configure it in the Configuration tab."
+					history[-1] = (message, f"❌ {error_msg}")
+					chat_state_value["agent_running"] = False
+					return history, chat_state_value, gr.update(interactive=True), gr.update(interactive=False)
 			
 			# Execute the agent
 			result_messages = []
@@ -183,8 +227,15 @@ def create_chat_tab(app_instance) -> List[gr.components.Component]:
 			):
 				if isinstance(output, tuple) and len(output) >= 4:
 					terminal_output, run_btn_state, stop_btn_state, result_output = output
-					if result_output and result_output.strip():
-						result_messages.append(result_output.strip())
+					# Extract the actual value from gr.update object if present
+					if isinstance(result_output, dict) and 'value' in result_output:
+						result_text = result_output['value']
+					else:
+						result_text = result_output
+					
+					# Only add non-empty results
+					if result_text and isinstance(result_text, str) and result_text.strip():
+						result_messages.append(result_text.strip())
 			
 			# Combine all result messages
 			final_result = "\n".join(result_messages) if result_messages else "Task completed successfully!"
@@ -208,7 +259,11 @@ def create_chat_tab(app_instance) -> List[gr.components.Component]:
 				)
 			
 		except Exception as e:
+			import traceback
 			error_msg = f"Error executing task: {str(e)}"
+			traceback_msg = traceback.format_exc()
+			print(f"Chat interface error: {error_msg}")
+			print(f"Traceback: {traceback_msg}")
 			history[-1] = (message, f"❌ {error_msg}")
 			
 			# Add error to chat state
