@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>macOS Automation - Elegant Interface</title>
+	<link rel="stylesheet" href="styles.css">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+	<div id="app">
+		<!-- Loading Screen -->
+		<div id="loading-screen" class="loading-screen">
+			<div class="loading-content">
+				<div class="loading-spinner"></div>
+				<h2>Initializing macOS Automation</h2>
+				<p>Setting up your elegant interface...</p>
+			</div>
+		</div>
+
+		<!-- Main Application -->
+		<div id="main-app" class="main-app hidden">
+			<!-- Header -->
+			<header class="app-header">
+				<div class="header-content">
+					<div class="header-left">
+						<div class="app-logo">
+							<i class="fas fa-desktop"></i>
+							<span>macOS Automation</span>
+						</div>
+					</div>
+					<div class="header-center">
+						<nav class="main-nav">
+							<button class="nav-btn active" data-tab="chat">
+								<i class="fas fa-comments"></i>
+								Chat
+							</button>
+							<button class="nav-btn" data-tab="agent">
+								<i class="fas fa-robot"></i>
+								Agent
+							</button>
+							<button class="nav-btn" data-tab="sessions">
+								<i class="fas fa-history"></i>
+								Sessions
+							</button>
+							<button class="nav-btn" data-tab="providers">
+								<i class="fas fa-cogs"></i>
+								Providers
+							</button>
+						</nav>
+					</div>
+					<div class="header-right">
+						<div class="connection-status" id="connection-status">
+							<i class="fas fa-circle"></i>
+							<span>Connected</span>
+						</div>
+					</div>
+				</div>
+			</header>
+
+			<!-- Main Content -->
+			<main class="app-main">
+				<!-- Chat Tab -->
+				<div id="chat-tab" class="tab-content active">
+					<div class="chat-layout">
+						<div class="chat-sidebar">
+							<div class="chat-controls">
+								<h3>
+									Saved Automations
+									<i class="fas fa-info-circle help-icon" title="Right-click any automation to save it for quick access"></i>
+								</h3>
+								<div class="automation-categories">
+									<div class="category-tabs">
+										<button class="category-tab active" data-category="Quick Tasks">Quick</button>
+										<button class="category-tab" data-category="Multi-Step Workflows">Workflows</button>
+										<button class="category-tab" data-category="Productivity Automations">Productivity</button>
+									</div>
+									<div id="automation-list" class="automation-list">
+										<div class="loading-automations">
+											<i class="fas fa-spinner fa-spin"></i>
+											Loading automations...
+										</div>
+									</div>
+								</div>
+
+								<div class="chat-settings">
+									<h3>
+										Settings 
+										<i class="fas fa-info-circle help-icon" title="Configure your chat preferences"></i>
+									</h3>
+									<div class="setting-group">
+										<label>Provider:</label>
+										<select id="chat-provider" class="setting-select">
+											<option value="OpenAI">OpenAI</option>
+										</select>
+									</div>
+									<div class="setting-group">
+										<label>Model:</label>
+										<select id="chat-model" class="setting-select">
+											<option value="gpt-4">GPT-4</option>
+										</select>
+									</div>
+									<div class="setting-group">
+										<label>API Key:</label>
+										<input type="password" id="chat-api-key" class="setting-input" placeholder="Enter API key...">
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="chat-main">
+							<div class="chat-header">
+								<h2>AI Assistant Chat</h2>
+								<div class="chat-actions">
+									<button id="clear-chat-btn" class="btn btn-secondary">
+										<i class="fas fa-trash"></i>
+										Clear
+									</button>
+									<button id="save-chat-btn" class="btn btn-primary">
+										<i class="fas fa-save"></i>
+										Save
+									</button>
+								</div>
+							</div>
+
+							<div id="chat-messages" class="chat-messages">
+								<div class="welcome-message">
+									<div class="welcome-content">
+										<i class="fas fa-robot"></i>
+										<h3>Welcome to macOS Automation!</h3>
+										<p>I'm your AI assistant for automating macOS tasks. You can:</p>
+										<ul>
+											<li>Ask me to control applications and perform tasks</li>
+											<li>Use natural language to describe what you want to do</li>
+											<li>Try quick actions from the sidebar</li>
+											<li>Save and load conversation sessions</li>
+										</ul>
+										<p>How can I help you today?</p>
+									</div>
+								</div>
+							</div>
+
+							<div class="chat-input-area">
+								<div class="chat-input-container">
+									<input type="text" id="chat-input" placeholder="Type your message or describe a task..." autocomplete="off">
+									<button id="send-chat-btn" class="send-btn">
+										<i class="fas fa-paper-plane"></i>
+									</button>
+								</div>
+								<div class="input-hints">
+									<span class="hint">💡 Try: "Open Calculator and compute 15 * 23"</span>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Agent Tab -->
+				<div id="agent-tab" class="tab-content">
+					<div class="agent-layout">
+						<div class="agent-form">
+							<div class="form-header">
+								<h2>
+									Agent Task Execution
+									<i class="fas fa-info-circle help-icon" title="Create detailed automation tasks with specific parameters"></i>
+								</h2>
+							</div>
+
+							<div class="form-content">
+								<div class="form-group">
+									<label for="agent-task">
+										Task Description
+										<i class="fas fa-question-circle help-icon" title="Describe the task you want the agent to perform in detail"></i>
+									</label>
+									<textarea id="agent-task" placeholder="Describe the task you want to automate..." rows="4"></textarea>
+									<button id="refine-task-btn" class="btn btn-secondary btn-sm">
+										<i class="fas fa-magic"></i>
+										Refine with AI
+									</button>
+								</div>
+
+								<div class="form-row">
+									<div class="form-group">
+										<label for="max-steps">
+											Max Steps
+											<i class="fas fa-question-circle help-icon" title="Maximum number of steps the agent can take to complete the task"></i>
+										</label>
+										<input type="number" id="max-steps" value="100" min="1" max="1000">
+									</div>
+									<div class="form-group">
+										<label for="max-actions">
+											Max Actions per Step
+											<i class="fas fa-question-circle help-icon" title="Maximum number of actions the agent can perform in each step"></i>
+										</label>
+										<input type="number" id="max-actions" value="10" min="1" max="50">
+									</div>
+								</div>
+
+								<div class="form-row">
+									<div class="form-group">
+										<label for="agent-provider">
+											Provider
+											<i class="fas fa-question-circle help-icon" title="Choose your AI provider. OpenAI, Anthropic, and Google have the best tool support for automation."></i>
+										</label>
+										<select id="agent-provider" class="form-select">
+											<option value="OpenAI">OpenAI</option>
+										</select>
+									</div>
+									<div class="form-group">
+										<label for="agent-model">
+											Model
+											<i class="fas fa-question-circle help-icon" title="For OpenRouter: Models with ✓ support tool use. Models marked (Free) don't require credits."></i>
+										</label>
+										<select id="agent-model" class="form-select">
+											<option value="gpt-4">GPT-4</option>
+										</select>
+									</div>
+								</div>
+
+								<div class="form-group">
+									<label for="agent-api-key">API Key</label>
+									<input type="password" id="agent-api-key" placeholder="Enter API key...">
+								</div>
+
+								<div class="form-actions">
+									<button id="run-agent-btn" class="btn btn-primary btn-lg">
+										<i class="fas fa-play"></i>
+										Run Agent
+									</button>
+									<button id="stop-agent-btn" class="btn btn-danger" disabled>
+										<i class="fas fa-stop"></i>
+										Stop
+									</button>
+								</div>
+							</div>
+						</div>
+
+						<div class="agent-output">
+							<div class="output-header">
+								<h3>Agent Execution</h3>
+								<div class="execution-status" id="execution-status">
+									<span class="status-text">Ready</span>
+								</div>
+							</div>
+
+							<div class="output-content">
+								<div id="agent-progress" class="progress-section hidden">
+									<div class="progress-info">
+										<span id="progress-text">Initializing...</span>
+										<span id="progress-step">Step 0 / 100</span>
+									</div>
+									<div class="progress-bar">
+										<div id="progress-fill" class="progress-fill"></div>
+									</div>
+								</div>
+
+								<div id="agent-terminal" class="terminal-output">
+									<div class="terminal-header">
+										<span>Terminal Output</span>
+										<button id="clear-terminal-btn" class="btn btn-sm btn-secondary">
+											<i class="fas fa-trash"></i>
+										</button>
+									</div>
+									<div id="terminal-content" class="terminal-content">
+										<p class="terminal-ready">Ready to execute agent tasks...</p>
+									</div>
+								</div>
+
+								<div id="agent-result" class="result-section hidden">
+									<h4>Final Result</h4>
+									<div id="result-content" class="result-content"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Sessions Tab -->
+				<div id="sessions-tab" class="tab-content">
+					<div class="sessions-layout">
+						<div class="sessions-header">
+							<h2>
+								Session Management
+								<i class="fas fa-info-circle help-icon" title="Save, load, and manage your conversation sessions"></i>
+							</h2>
+							<button id="refresh-sessions-btn" class="btn btn-secondary">
+								<i class="fas fa-sync"></i>
+								Refresh
+							</button>
+						</div>
+
+						<div class="sessions-content">
+							<div class="session-actions">
+								<div class="save-session-form">
+									<input type="text" id="session-name-input" placeholder="Enter session name..." class="form-input">
+									<button id="save-session-btn" class="btn btn-primary">
+										<i class="fas fa-save"></i>
+										Save Current Session
+									</button>
+								</div>
+							</div>
+
+							<div class="sessions-list">
+								<div id="sessions-container" class="sessions-container">
+									<div class="loading-sessions">
+										<i class="fas fa-spinner fa-spin"></i>
+										Loading sessions...
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Providers Tab -->
+				<div id="providers-tab" class="tab-content">
+					<div class="providers-layout">
+						<div class="providers-header">
+							<h2>
+								Provider Configuration
+								<i class="fas fa-info-circle help-icon" title="Configure and test your AI providers"></i>
+							</h2>
+							<button id="refresh-providers-btn" class="btn btn-secondary">
+								<i class="fas fa-sync"></i>
+								Refresh
+							</button>
+						</div>
+
+						<div class="providers-content">
+							<div id="providers-grid" class="providers-grid">
+								<div class="loading-providers">
+									<i class="fas fa-spinner fa-spin"></i>
+									Loading providers...
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</main>
+		</div>
+
+		<!-- Modals -->
+		<div id="modal-overlay" class="modal-overlay hidden">
+			<div id="modal-content" class="modal-content">
+				<!-- Modal content will be dynamically inserted -->
+			</div>
+		</div>
+
+		<!-- Toast Notifications -->
+		<div id="toast-container" class="toast-container"></div>
+	</div>
+
+	<!-- Scripts -->
+	<script src="js/app.js" type="module"></script>
+</body>
+</html>

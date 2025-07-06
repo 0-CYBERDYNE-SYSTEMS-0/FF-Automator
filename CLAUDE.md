@@ -79,6 +79,57 @@ python standalone_cli.py
 - Session management with save/load functionality
 - Real-time agent feedback
 
+### Comprehensive LLM Provider Support (2025)
+
+#### Supported Providers & Models
+
+**🌐 Cloud Providers:**
+- **OpenAI**: GPT-4.1, o3, o4-mini, o3-pro, o4-mini-high, gpt-4o, gpt-4o-mini
+- **Anthropic**: Claude 4 (Opus, Sonnet), Claude 3.5 (Sonnet, Haiku), Claude 3 series
+- **Google**: Gemini 2.5 (Pro, Flash), Gemini 2.0 (Flash, Live), Gemini 1.5 series
+- **DeepSeek**: deepseek-chat (V3-0324), deepseek-reasoner (R1-0528)
+- **OpenRouter**: 400+ models including free options (Llama, Phi, Gemma)
+
+**💻 Local Providers:**
+- **Ollama**: Auto-detected models (no API key needed)
+- **LM Studio**: Auto-detected models (no API key needed)
+
+#### Quick Setup
+
+```bash
+# Test all providers
+python test_providers.py
+
+# Copy environment template
+cp .env.example .env
+
+# Add your API keys to .env:
+OPENAI_API_KEY=your_openai_key
+ANTHROPIC_API_KEY=your_anthropic_key
+GEMINI_API_KEY=your_google_key
+DEEPSEEK_API_KEY=your_deepseek_key
+OPENROUTER_API_KEY=your_openrouter_key
+
+# Set preferred provider (optional)
+DEFAULT_LLM_PROVIDER=OpenAI
+DEFAULT_LLM_MODEL=gpt-4.1
+```
+
+#### Provider Features
+
+**Model Selection by Task:**
+- **Reasoning**: o3, o3-pro, Claude 4 Opus, deepseek-reasoner, Gemini 2.5 Pro
+- **Coding**: gpt-4.1, Claude 4 Sonnet, deepseek-chat, Gemini 2.5 Flash
+- **General Chat**: gpt-4o, Claude 3.5 Sonnet, Gemini 2.0 Flash
+- **Cost-Effective**: o4-mini, OpenRouter free models, Local models
+
+**Advanced Features:**
+- Automatic provider health checking
+- Smart fallback to available providers
+- Cost optimization with spending limits
+- Task-specific provider preferences
+- Real-time provider status indicators
+
 ## Architecture
 
 ### Core Components
