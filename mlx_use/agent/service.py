@@ -63,6 +63,7 @@ class Agent:
 		max_failures: int = 5,
 		retry_delay: int = 10,
 		system_prompt_class: Type[SystemPrompt] = SystemPrompt,
+		system_prompt_kwargs: Optional[Dict[str, Any]] = None,
 		max_input_tokens: int = 128000,
 		validate_output: bool = False,
 		generate_gif: bool | str = True,
@@ -104,6 +105,7 @@ class Agent:
 		self.max_actions_per_step = max_actions_per_step
 
 		self.system_prompt_class = system_prompt_class
+		self.system_prompt_kwargs = system_prompt_kwargs or {}
 
 		# Telemetry setup
 		self.telemetry = ProductTelemetry()
@@ -122,6 +124,7 @@ class Agent:
 			task=self.task,
 			action_descriptions=self.controller.registry.get_prompt_description(),
 			system_prompt_class=self.system_prompt_class,
+			system_prompt_kwargs=self.system_prompt_kwargs,
 			max_input_tokens=self.max_input_tokens,
 			include_attributes=self.include_attributes,
 			max_error_length=self.max_error_length,

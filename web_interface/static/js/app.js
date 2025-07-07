@@ -91,6 +91,8 @@ class MacOSAutomationApp {
 		const chatInput = document.getElementById('chat-input');
 		const sendBtn = document.getElementById('send-chat-btn');
 		const stopBtn = document.getElementById('stop-chat-btn');
+		const interruptBtn = document.getElementById('interrupt-chat-btn');
+		const redirectBtn = document.getElementById('redirect-chat-btn');
 		const clearBtn = document.getElementById('clear-chat-btn');
 		const saveBtn = document.getElementById('save-chat-btn');
 
@@ -107,6 +109,12 @@ class MacOSAutomationApp {
 
 		// Stop button
 		stopBtn.addEventListener('click', () => this.stopChat());
+
+		// Interrupt button
+		interruptBtn.addEventListener('click', () => this.interruptChat());
+
+		// Redirect button
+		redirectBtn.addEventListener('click', () => this.redirectChat());
 
 		// Clear chat
 		clearBtn.addEventListener('click', () => this.clearChat());
@@ -234,6 +242,9 @@ class MacOSAutomationApp {
 			case 'chat_response':
 				this.handleChatResponse(message.data);
 				break;
+			case 'chat_stream_update':
+				this.handleChatStreamUpdate(message.data);
+				break;
 			case 'chat_complete':
 				this.handleChatComplete(message.data);
 				break;
@@ -307,6 +318,9 @@ class MacOSAutomationApp {
 		// Show typing indicator
 		this.currentChatTypingId = this.addTypingIndicator();
 
+		// Get custom system message
+		const customSystemMessage = document.getElementById('chat-custom-system').value.trim();
+
 		// Send via WebSocket
 		if (this.socket && this.socket.readyState === WebSocket.OPEN) {
 			this.socket.send(JSON.stringify({
@@ -315,7 +329,8 @@ class MacOSAutomationApp {
 					message,
 					llm_provider: provider,
 					llm_model: model,
-					api_key: apiKey
+					api_key: apiKey,
+					custom_system_message: customSystemMessage
 				}
 			}));
 
@@ -446,13 +461,43 @@ class MacOSAutomationApp {
 		this.showToast('Chat stopped', 'info');
 	}
 
+	interruptChat() {
+		if (!this.isChatRunning) return;
+
+		if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+			this.socket.send(JSON.stringify({ type: 'interrupt_chat', data: {} }));
+		}
+
+		this.showToast('Chat interrupted', 'info');
+	}
+
+	redirectChat() {
+		if (!this.isChatRunning) return;
+
+		const newTask = prompt('Enter the new task to redirect to:');
+		if (!newTask || !newTask.trim()) return;
+
+		if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+			this.socket.send(JSON.stringify({ 
+				type: 'redirect_chat', 
+				data: { task: newTask.trim() } 
+			}));
+		}
+
+		this.showToast(`Redirecting to: ${newTask}`, 'info');
+	}
+
 	updateChatUI(running) {
 		const sendBtn = document.getElementById('send-chat-btn');
 		const stopBtn = document.getElementById('stop-chat-btn');
+		const interruptBtn = document.getElementById('interrupt-chat-btn');
+		const redirectBtn = document.getElementById('redirect-chat-btn');
 		const chatInput = document.getElementById('chat-input');
 
 		sendBtn.disabled = running;
 		stopBtn.disabled = !running;
+		interruptBtn.disabled = !running;
+		redirectBtn.disabled = !running;
 		chatInput.disabled = running;
 
 		if (running) {
@@ -474,6 +519,67 @@ class MacOSAutomationApp {
 				}
 			}
 		}
+	}
+
+	handleChatStreamUpdate(data) {
+		// Handle multi-step chat execution updates
+		const { status, message, step, max_steps, queue_status, current_task } = data;
+
+		// Update or create typing indicator based on status
+		if (status === 'starting') {
+			this.currentChatTypingId = this.addTypingIndicator();
+		}
+
+		// Update typing indicator with current status
+		if (this.currentChatTypingId) {
+			const typingEl = document.getElementById(this.currentChatTypingId);
+			if (typingEl) {
+				const bubble = typingEl.querySelector('.message-bubble');
+				if (bubble) {
+					let displayMessage = message;
+					
+					// Add step information if available
+					if (step && max_steps) {
+						displayMessage += ` (Step ${step}/${max_steps})`;
+					}
+					
+					// Add task queue information if available
+					if (queue_status && queue_status.pending_tasks > 0) {
+						displayMessage += ` [${queue_status.pending_tasks} tasks queued]`;
+					}
+					
+					// Add status indicator
+					const statusIcon = this.getStatusIcon(status);
+					bubble.innerHTML = `${statusIcon} ${this.formatMessageContent(displayMessage)}`;
+				}
+			}
+		}
+
+		// Add progress message for certain statuses
+		if (status === 'step_completed' || status === 'next_task' || status === 'task_added') {
+			this.addChatMessage(message, 'assistant', true);
+		}
+
+		// Handle special statuses
+		if (status === 'interrupted' || status === 'redirected') {
+			this.addChatMessage(message, 'assistant', true);
+			this.showToast(message, 'info');
+		}
+	}
+
+	getStatusIcon(status) {
+		const icons = {
+			'starting': '<i class="fas fa-play fa-pulse"></i>',
+			'running': '<i class="fas fa-cog fa-spin"></i>',
+			'step_completed': '<i class="fas fa-check"></i>',
+			'completed': '<i class="fas fa-check-circle"></i>',
+			'next_task': '<i class="fas fa-arrow-right"></i>',
+			'interrupted': '<i class="fas fa-pause"></i>',
+			'redirected': '<i class="fas fa-route"></i>',
+			'task_added': '<i class="fas fa-plus"></i>',
+			'error': '<i class="fas fa-exclamation-triangle"></i>'
+		};
+		return icons[status] || '<i class="fas fa-robot"></i>';
 	}
 
 	handleChatComplete(data) {
@@ -612,6 +718,9 @@ class MacOSAutomationApp {
 		this.isAgentRunning = true;
 		this.updateAgentUI(true);
 
+		// Get custom system message
+		const customSystemMessage = document.getElementById('agent-custom-system').value.trim();
+
 		// Send task via WebSocket
 		if (this.socket && this.socket.readyState === WebSocket.OPEN) {
 			this.socket.send(JSON.stringify({
@@ -622,7 +731,8 @@ class MacOSAutomationApp {
 					max_actions: maxActions,
 					llm_provider: provider,
 					llm_model: model,
-					api_key: apiKey
+					api_key: apiKey,
+					custom_system_message: customSystemMessage
 				}
 			}));
 		} else {

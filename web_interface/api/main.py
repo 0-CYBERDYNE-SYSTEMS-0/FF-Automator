@@ -25,14 +25,137 @@ from dotenv import load_dotenv, set_key
 from mlx_use.agent.service import Agent
 from mlx_use.agent.prompts import SystemPrompt
 from mlx_use.controller.service import Controller
+from mlx_use.agent.views import AgentOutput, ActionResult
 
 # Load environment variables
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-class ChatSystemPrompt(SystemPrompt):
-	"""System prompt optimized for chat interactions with macOS automation"""
+class ChatSystemPromptWithCustom(SystemPrompt):
+	"""System prompt optimized for chat interactions with macOS automation that supports custom messages"""
+	
+	def __init__(self, action_description: str, current_date: datetime, max_actions_per_step: int = 10, custom_message: str = None):
+		"""Initialize with optional custom message"""
+		super().__init__(action_description, current_date, max_actions_per_step)
+		self.custom_message = custom_message
+	
+	def important_rules(self) -> str:
+		"""Enhanced chat rules for multi-step autonomous execution with conversational capabilities"""
+		text = """
+1. RESPONSE FORMAT:
+   You must ALWAYS respond with a valid JSON object that has EXACTLY two keys:
+     {
+     "current_state": {
+       "evaluation_previous_goal": "Success|Failed|Unknown - Analyze if the user's request was completed",
+       "memory": "What you've done and learned from this interaction", 
+       "next_goal": "How to help the user next"
+     },
+     "action": [
+       {
+         "action_name": {
+           // action parameters
+         }
+       }
+     ]
+   }
+
+2. MULTI-STEP EXECUTION:
+   - You are operating in AUTONOMOUS mode - continue working until the task is complete
+   - Break complex requests into multiple steps and execute them sequentially
+   - Use "reply" action to communicate progress and explain what you're doing
+   - For complex tasks like "open Safari, go to website, get info, make note" - execute ALL steps
+   - Don't stop after the first action - keep going until the entire request is fulfilled
+
+3. CONVERSATIONAL BEHAVIOR:
+   - Provide progress updates using "reply" actions between automation steps
+   - Explain what you're doing and what you've accomplished
+   - Ask for clarification only when absolutely necessary
+   - Remember previous actions and reference them in conversation
+   - Be proactive in suggesting follow-up actions
+
+4. ACTION SELECTION STRATEGY:
+   - For simple questions/chat: Use "reply" action with your response
+   - For automation requests: Use appropriate macOS actions AND provide "reply" updates
+   - For multi-step tasks: Chain actions with progress "reply" messages
+   - For task completion: Use "done" action with comprehensive results
+   - Always prioritize task completion over stopping early
+
+5. TASK QUEUE AWARENESS:
+   - You can handle multiple tasks and follow-up requests
+   - If user mentions additional tasks while working, note them for later
+   - Complete current task before moving to next unless redirected
+   - Reference completed tasks in conversation context
+
+6. EXAMPLES:
+   - User: "Open Safari and go to apple.com" → open_app + navigate + reply with confirmation
+   - User: "Create a note with today's weather" → open_app + create note + reply about limitation + suggest alternatives
+   - User: "Find my system info and email it to myself" → open app + find info + open mail + compose + send + reply with confirmation
+   - Complex: "Open Calculator, do 5*4, then open Notes and write the result" → Execute ALL steps autonomously
+
+7. CONTEXT RETENTION:
+   - Remember what apps are open and what you've done
+   - Reference previous actions in current responses
+   - Build on previous work rather than starting fresh
+   - Maintain conversation flow while executing tasks
+"""
+		# Add custom message if provided
+		if self.custom_message:
+			text += f"\n\n8. CUSTOM INSTRUCTIONS:\n   {self.custom_message}\n"
+		
+		return text
+
+	def get_user_prompt(self, task: str, action_descriptions: str, state: str, include_attributes: List[str], 
+						max_error_length: int, last_result: Optional[list] = None, 
+						step_info: Optional[any] = None) -> str:
+		"""Enhanced chat prompt with multi-step awareness and conversation context"""
+		
+		prompt = f"""You are an AI assistant for macOS automation with AUTONOMOUS MULTI-STEP capabilities. You execute complex tasks until completion while maintaining conversational interaction.
+
+AVAILABLE ACTIONS:
+{action_descriptions}
+
+CURRENT TASK: {task}
+
+IMPORTANT BEHAVIORAL RULES:
+{self.important_rules()}
+
+CURRENT STATE:
+{state if state else "Starting conversation - no app is currently active."}
+
+CONVERSATION CONTEXT:
+- You are in AUTONOMOUS MODE - execute ALL steps needed to complete the user's request
+- Don't stop after one action - continue until the entire task is finished
+- Use "reply" actions to provide progress updates and maintain conversation
+- Remember what you've accomplished and build on previous actions
+"""
+
+		if last_result:
+			prompt += f"\nPREVIOUS ACTION RESULTS:\n"
+			for result in last_result:
+				if result.extracted_content:
+					prompt += f"✅ {result.extracted_content}\n"
+				if result.error:
+					error = result.error[:max_error_length] if max_error_length > 0 else result.error
+					prompt += f"❌ Error: {error}\n"
+
+		prompt += f"""
+TASK ANALYSIS:
+- If this is a simple conversation/question, use the "reply" action
+- If this requires macOS automation, use the appropriate actions
+- Always communicate clearly about what you're doing
+
+Remember: You can both chat naturally AND perform automation tasks. Choose the right approach for each user message.
+
+Current date and time: {self.current_date}
+Maximum actions per step: {self.max_actions_per_step}
+
+Respond with valid JSON following the exact format specified above."""
+
+		return prompt
+
+class ChatSystemPrompt(ChatSystemPromptWithCustom):
+	"""System prompt optimized for chat interactions with macOS automation (backward compatibility)"""
 	
 	def important_rules(self) -> str:
 		"""Chat-optimized rules that emphasize conversational responses"""
@@ -116,6 +239,437 @@ Maximum actions per step: {self.max_actions_per_step}
 Respond with valid JSON following the exact format specified above."""
 
 		return prompt
+
+class SystemPromptWithCustom(SystemPrompt):
+	"""SystemPrompt class that supports custom messages"""
+	
+	def __init__(self, action_description: str, current_date: datetime, max_actions_per_step: int = 10, custom_message: str = None):
+		"""Initialize with optional custom message"""
+		super().__init__(action_description, current_date, max_actions_per_step)
+		self.custom_message = custom_message
+	
+	def important_rules(self) -> str:
+		"""Returns a string containing important rules for the system, with custom message if provided"""
+		text = """
+1. RESPONSE FORMAT:
+   You must ALWAYS respond with a valid JSON object that has EXACTLY two keys:
+     {
+     "current_state": {
+       "evaluation_previous_goal": "Success|Failed|Unknown - Use UI context elements to verify outcomes (e.g., results in context). Use action results to confirm execution when UI changes are delayed or unclear.",
+       "memory": "What you've done and need to remember",
+       "next_goal": "Next step to achieve"
+     },
+     "action": [
+       {
+         "one_action_name": {
+           // action-specific parameter
+         }
+       },
+       // ... more actions in sequence
+     ]
+   }'
+
+2. ACTIONS: You can specify multiple actions in the list to be executed in sequence. But always specify only one action name per item.
+    - Always start with open_app to ensure the correct app is active.
+    - For stable UIs (e.g., Calculator), batch actions up to max_actions_per_step.
+    - For dynamic UIs (e.g., Mail), perform one action at a time due to potential refreshes.
+
+
+3. APP HANDLING:
+   - App names are case-sensitive (e.g. 'Microsoft Excel', 'Calendar').
+   - Always use the correct app for the task. (e.g. calculator for calculations, mail for sending emails, browser for browsing, etc.)
+   - Never assume apps are already open.
+   - When opening a browser, always open a new window with AppleScript.
+   - Common app mappings:
+       * Calendar app may appear as 'iCal' or 'com.apple.iCal'.
+       * Excel may appear as 'Microsoft Excel' or 'com.microsoft.Excel'.
+       * Messages may appear as 'Messages' or 'com.apple.MobileSMS'.
+
+4. ELEMENT INTERACTION:
+   - Interactive elements: "[index][:]<type> [interactive]" (e.g., "1[:]<AXButton>").
+   - Context elements: "_[:]<type> [context]" (e.g., "_[:]<AXStaticText value='20'>").
+   - Use context elements to verify outcomes (e.g., check results after actions).
+   - Use attributes (description, title, value) to identify elements accurately.
+   - When providing an element index to click, use the actions list attribute to choose which action to use.
+
+5. TASK COMPLETION:
+   - Use the "done" action when the task is complete.
+   - Don't hallucinate actions.
+   - After performing actions, verify the outcome using context elements in the UI tree.
+   - For tasks like calculations, always verify the result using context elements before marking as complete.
+   - For tasks like playing media, check the current track or playback status via AppleScript.
+   - If verification fails, attempt retries or alternative approaches before using "done".
+   - Include all task results in the "done" action text.
+   - If stuck after 3 attempts, use "done" with error details.
+   - If task is failed, provide the best explanation of what went wrong with the "done" action.
+   - Stable UIs (e.g., Calculator): Element indices remain consistent across actions, Batch up to max_actions_per_step actions (e.g., click "5", "+", "3", "=").
+   - Dynamic UIs (e.g., Mail): Elements may refresh or reorder after actions, perform one action at a time.
+
+6. NAVIGATION & ERROR HANDLING:
+   - If an element isn't found, search for alternatives using descriptions or attributes.
+   - If stuck, try alternative approaches.
+   - If text input fails, ensure the element is a text field.
+   - If submit fails, try click_element on the submit button instead.
+   - If the UI tree fails with "Window not found" or error `-25212`, use open_app to open the app again.
+   - Before interacting, verify the element is enabled (check `enabled="True"` in attributes). If not, find an alternative or use AppleScript.
+
+7. APPLESCRIPT SUPPORT:
+   - Use AppleScript for precise control (e.g., creating a note directly) or when UI interactions fail after retries.   - Use this for complex operations not possible through UI interactions.
+   - Always use AppleScript with the correct command syntax.
+   - Examples: 
+        - Tell application to make new note: {"run_apple_script": {"script": "tell application \"Notes\" to make new note"}}
+        - Text-to-speech: {"run_apple_script": {"script": "say \"Task complete\""}}
+        - Rename a file in Finder: {"run_apple_script": {"script": "tell application \"Finder\" to set name of item 1 of desktop to \"NewName\""}}
+"""
+		# Add custom message if provided
+		if self.custom_message:
+			text += f"\n\n8. CUSTOM INSTRUCTIONS:\n   {self.custom_message}\n"
+		
+		text += f'   - max_actions_per_step: {self.max_actions_per_step}'
+		return text
+
+class ConversationMemory:
+	"""Manages conversation context and memory across multiple interactions"""
+	
+	def __init__(self):
+		self.conversation_history = []
+		self.completed_actions = []
+		self.current_context = {}
+		self.task_queue = []
+		self.learned_info = {}
+	
+	def add_user_message(self, message: str):
+		"""Add user message to conversation history"""
+		self.conversation_history.append({
+			"type": "user",
+			"content": message,
+			"timestamp": datetime.now().isoformat()
+		})
+	
+	def add_agent_response(self, response: str, actions_taken: List[str] = None):
+		"""Add agent response and actions taken"""
+		self.conversation_history.append({
+			"type": "agent",
+			"content": response,
+			"actions_taken": actions_taken or [],
+			"timestamp": datetime.now().isoformat()
+		})
+		if actions_taken:
+			self.completed_actions.extend(actions_taken)
+	
+	def add_learned_info(self, key: str, value: str):
+		"""Add learned information for future reference"""
+		self.learned_info[key] = value
+	
+	def get_context_summary(self) -> str:
+		"""Get a summary of the conversation context"""
+		if not self.conversation_history:
+			return "No previous conversation."
+		
+		recent_messages = self.conversation_history[-5:]  # Last 5 messages
+		context = "Recent conversation:\n"
+		for msg in recent_messages:
+			context += f"- {msg['type']}: {msg['content'][:100]}...\n"
+		
+		if self.completed_actions:
+			context += f"\nCompleted actions: {', '.join(self.completed_actions[-5:])}"
+		
+		if self.learned_info:
+			context += f"\nLearned information: {self.learned_info}"
+		
+		return context
+
+class ChatTaskQueue:
+	"""Manages task queue for chat agent with follow-ups and dependencies"""
+	
+	def __init__(self):
+		self.tasks = []
+		self.current_task = None
+		self.completed_tasks = []
+		self.task_id_counter = 0
+	
+	def add_task(self, task: str, priority: str = "normal", depends_on: str = None):
+		"""Add a new task to the queue"""
+		self.task_id_counter += 1
+		task_item = {
+			"id": str(self.task_id_counter),
+			"task": task,
+			"priority": priority,
+			"depends_on": depends_on,
+			"status": "pending",
+			"created_at": datetime.now().isoformat()
+		}
+		
+		if priority == "high":
+			self.tasks.insert(0, task_item)
+		else:
+			self.tasks.append(task_item)
+		
+		return task_item["id"]
+	
+	def get_next_task(self):
+		"""Get the next task to execute"""
+		if not self.tasks:
+			return None
+		
+		# Find first task with no dependencies or completed dependencies
+		for task in self.tasks:
+			if task["depends_on"] is None or task["depends_on"] in [t["id"] for t in self.completed_tasks]:
+				return task
+		
+		return None
+	
+	def start_task(self, task_id: str):
+		"""Mark a task as started"""
+		for task in self.tasks:
+			if task["id"] == task_id:
+				task["status"] = "in_progress"
+				self.current_task = task
+				break
+	
+	def complete_task(self, task_id: str, result: str = None):
+		"""Mark a task as completed"""
+		for i, task in enumerate(self.tasks):
+			if task["id"] == task_id:
+				task["status"] = "completed"
+				task["result"] = result
+				task["completed_at"] = datetime.now().isoformat()
+				self.completed_tasks.append(task)
+				self.tasks.pop(i)
+				if self.current_task and self.current_task["id"] == task_id:
+					self.current_task = None
+				break
+	
+	def has_tasks(self) -> bool:
+		"""Check if there are pending tasks"""
+		return len(self.tasks) > 0
+	
+	def get_queue_status(self) -> dict:
+		"""Get current queue status"""
+		return {
+			"pending_tasks": len(self.tasks),
+			"current_task": self.current_task,
+			"completed_tasks": len(self.completed_tasks),
+			"next_task": self.get_next_task()
+		}
+
+class ChatAgent(Agent):
+	"""Enhanced Agent with conversational capabilities and task queue management"""
+	
+	def __init__(self, *args, **kwargs):
+		# Extract chat-specific parameters
+		self.conversation_memory = kwargs.pop('conversation_memory', ConversationMemory())
+		self.task_queue = kwargs.pop('task_queue', ChatTaskQueue())
+		self.streaming_callback = kwargs.pop('streaming_callback', None)
+		self.needs_input_callback = kwargs.pop('needs_input_callback', None)
+		self.interrupt_flag = False
+		self.redirect_message = None
+		
+		super().__init__(*args, **kwargs)
+	
+	async def run_conversational(self, max_steps: int = 50) -> dict:
+		"""Run the agent with conversational capabilities and task queue management"""
+		results = []
+		
+		try:
+			# Process current task or get next from queue
+			if not self.task_queue.current_task:
+				next_task = self.task_queue.get_next_task()
+				if next_task:
+					self.task_queue.start_task(next_task["id"])
+					self.task = next_task["task"]
+				else:
+					# No tasks in queue, create one from current task
+					task_id = self.task_queue.add_task(self.task)
+					self.task_queue.start_task(task_id)
+			
+			# Send initial status
+			if self.streaming_callback:
+				await self.streaming_callback({
+					"type": "chat_stream_update",
+					"data": {
+						"status": "starting",
+						"message": f"Starting task: {self.task}",
+						"current_task": self.task_queue.current_task,
+						"queue_status": self.task_queue.get_queue_status()
+					}
+				})
+			
+			# Execute the task with streaming updates
+			history = await self.run_with_streaming(max_steps)
+			
+			# Process results
+			if history.is_done():
+				final_result = history.history[-1].result[-1].extracted_content if history.history and history.history[-1].result else "Task completed successfully"
+				
+				# Mark current task as completed
+				if self.task_queue.current_task:
+					self.task_queue.complete_task(self.task_queue.current_task["id"], final_result)
+				
+				# Add to conversation memory
+				actions_taken = self._extract_actions_from_history(history)
+				self.conversation_memory.add_agent_response(final_result, actions_taken)
+				
+				results.append({
+					"task": self.task,
+					"result": final_result,
+					"success": True,
+					"actions_taken": actions_taken
+				})
+				
+				# Send completion status
+				if self.streaming_callback:
+					await self.streaming_callback({
+						"type": "chat_stream_update",
+						"data": {
+							"status": "completed",
+							"message": final_result,
+							"task_completed": self.task_queue.current_task,
+							"queue_status": self.task_queue.get_queue_status()
+						}
+					})
+				
+			else:
+				# Task failed or hit max steps
+				error_msg = "Task failed to complete within maximum steps"
+				if self.task_queue.current_task:
+					self.task_queue.complete_task(self.task_queue.current_task["id"], error_msg)
+				
+				results.append({
+					"task": self.task,
+					"result": error_msg,
+					"success": False,
+					"actions_taken": []
+				})
+			
+			# Check for more tasks in queue
+			if self.task_queue.has_tasks():
+				next_task = self.task_queue.get_next_task()
+				if next_task and self.streaming_callback:
+					await self.streaming_callback({
+						"type": "chat_stream_update",
+						"data": {
+							"status": "next_task",
+							"message": f"Moving to next task: {next_task['task']}",
+							"queue_status": self.task_queue.get_queue_status()
+						}
+					})
+					
+					# Continue with next task
+					self.task = next_task["task"]
+					next_results = await self.run_conversational(max_steps)
+					results.extend(next_results["results"])
+		
+		except Exception as e:
+			logger.error(f"Error in conversational run: {e}")
+			results.append({
+				"task": self.task,
+				"result": f"Error: {str(e)}",
+				"success": False,
+				"actions_taken": []
+			})
+		
+		return {
+			"results": results,
+			"conversation_memory": self.conversation_memory,
+			"queue_status": self.task_queue.get_queue_status()
+		}
+	
+	async def run_with_streaming(self, max_steps: int):
+		"""Run the agent with streaming callbacks"""
+		# Execute initial actions if provided
+		if self.initial_actions:
+			result = await self.controller.multi_act(self.initial_actions, self.mac_tree_builder)
+			self._last_result = result
+		
+		# Multi-step execution loop with streaming
+		for step in range(max_steps):
+			# Check for interruption or redirection
+			if self.interrupt_flag:
+				if self.redirect_message:
+					self.task = self.redirect_message
+					self.redirect_message = None
+				self.interrupt_flag = False
+			
+			if self._too_many_failures():
+				break
+			
+			# Check control flags (pause/stop)
+			if not await self._handle_control_flags():
+				break
+			
+			# Send step update
+			if self.streaming_callback:
+				await self.streaming_callback({
+					"type": "chat_stream_update",
+					"data": {
+						"status": "running",
+						"message": f"Step {step + 1}: Processing...",
+						"step": step + 1,
+						"max_steps": max_steps,
+						"current_task": self.task_queue.current_task
+					}
+				})
+			
+			# Execute one step
+			await self.step()
+			
+			# Send step completion update
+			if self.streaming_callback and self._last_result:
+				actions_summary = self._summarize_actions(self._last_result)
+				await self.streaming_callback({
+					"type": "chat_stream_update",
+					"data": {
+						"status": "step_completed",
+						"message": f"Step {step + 1} completed: {actions_summary}",
+						"step": step + 1,
+						"max_steps": max_steps,
+						"actions_taken": actions_summary
+					}
+				})
+			
+			# Check if task is complete
+			if self.history.is_done():
+				logger.info('✅ Task completed successfully')
+				break
+		else:
+			logger.info('❌ Failed to complete task in maximum steps')
+		
+		return self.history
+	
+	def interrupt_execution(self, redirect_message: str = None):
+		"""Interrupt current execution and optionally redirect to new task"""
+		self.interrupt_flag = True
+		if redirect_message:
+			self.redirect_message = redirect_message
+	
+	def add_task_to_queue(self, task: str, priority: str = "normal"):
+		"""Add a new task to the queue"""
+		return self.task_queue.add_task(task, priority)
+	
+	def _extract_actions_from_history(self, history) -> List[str]:
+		"""Extract action names from agent history"""
+		actions = []
+		for step in history.history:
+			if step.result:
+				for result in step.result:
+					if hasattr(result, 'action_name'):
+						actions.append(result.action_name)
+		return actions
+	
+	def _summarize_actions(self, results: List[ActionResult]) -> str:
+		"""Summarize actions taken in this step"""
+		if not results:
+			return "No actions taken"
+		
+		summaries = []
+		for result in results:
+			if hasattr(result, 'action_name'):
+				summaries.append(result.action_name)
+			elif result.extracted_content:
+				summaries.append(result.extracted_content[:50] + "...")
+		
+		return ", ".join(summaries) if summaries else "Actions completed"
 
 # Import the exact same models from the Gradio app
 LLM_MODELS = {
@@ -540,12 +1094,14 @@ class AgentTaskRequest(BaseModel):
 	llm_provider: str = "OpenAI"
 	llm_model: str = "gpt-4"
 	api_key: Optional[str] = None
+	custom_system_message: Optional[str] = None
 
 class ChatMessage(BaseModel):
 	message: str
 	llm_provider: str = "OpenAI"
 	llm_model: str = "gpt-4"
 	api_key: Optional[str] = None
+	custom_system_message: Optional[str] = None
 
 class SessionSaveRequest(BaseModel):
 	session_name: str
@@ -574,6 +1130,11 @@ class ConnectionManager:
 			del self.agent_sessions[client_id]
 		if client_id in self.chat_agents:
 			del self.chat_agents[client_id]
+		# Clean up conversation memory and task queues
+		if hasattr(self, 'conversation_memories') and client_id in self.conversation_memories:
+			del self.conversation_memories[client_id]
+		if hasattr(self, 'task_queues') and client_id in self.task_queues:
+			del self.task_queues[client_id]
 
 	async def send_message(self, message: dict, client_id: str):
 		if client_id in self.active_connections:
@@ -768,13 +1329,22 @@ async def send_chat_message(request: ChatMessage):
 		# Get LLM instance
 		llm = get_llm(request.llm_provider, request.llm_model, request.api_key)
 		
-		# Create agent with chat-optimized system prompt
+		# Choose system prompt class based on whether custom message is provided
+		if request.custom_system_message:
+			system_prompt_class = ChatSystemPromptWithCustom
+			system_prompt_kwargs = {"custom_message": request.custom_system_message}
+		else:
+			system_prompt_class = ChatSystemPrompt
+			system_prompt_kwargs = {}
+		
+		# Create agent with appropriate system prompt
 		agent = Agent(
 			task=f"User message: {request.message}",
 			llm=llm,
 			controller=Controller(),
 			max_actions_per_step=3,  # Allow multiple actions for complex requests
-			system_prompt_class=ChatSystemPrompt  # We'll create this
+			system_prompt_class=system_prompt_class,
+			system_prompt_kwargs=system_prompt_kwargs
 		)
 		
 		# Run just one step to get the response
@@ -817,6 +1387,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 				await handle_stop_agent(client_id)
 			elif message["type"] == "stop_chat":
 				await handle_stop_chat(client_id)
+			elif message["type"] == "interrupt_chat":
+				await handle_interrupt_chat(message["data"], client_id)
+			elif message["type"] == "redirect_chat":
+				await handle_redirect_chat(message["data"], client_id)
+			elif message["type"] == "add_task":
+				await handle_add_task(message["data"], client_id)
 			elif message["type"] == "ping":
 				await manager.send_message({"type": "pong"}, client_id)
 				
@@ -833,6 +1409,7 @@ async def handle_agent_task(task_data: dict, client_id: str):
 		llm_provider = task_data.get("llm_provider", "OpenAI")
 		llm_model = task_data.get("llm_model", "gpt-4")
 		api_key = task_data.get("api_key")
+		custom_system_message = task_data.get("custom_system_message")
 		
 		# Save API key if provided
 		if api_key:
@@ -849,12 +1426,22 @@ async def handle_agent_task(task_data: dict, client_id: str):
 		# Get LLM instance
 		llm = get_llm(llm_provider, llm_model, api_key)
 		
+		# Choose system prompt class based on whether custom message is provided
+		if custom_system_message:
+			system_prompt_class = SystemPromptWithCustom
+			system_prompt_kwargs = {"custom_message": custom_system_message}
+		else:
+			system_prompt_class = SystemPrompt
+			system_prompt_kwargs = {}
+		
 		# Create agent
 		agent = Agent(
 			task=task,
 			llm=llm,
 			controller=Controller(),
-			max_actions_per_step=max_actions
+			max_actions_per_step=max_actions,
+			system_prompt_class=system_prompt_class,
+			system_prompt_kwargs=system_prompt_kwargs
 		)
 		
 		# Store agent for potential stopping
@@ -913,77 +1500,118 @@ async def handle_agent_task(task_data: dict, client_id: str):
 			del manager.agent_sessions[client_id]
 
 async def handle_chat_message(message_data: dict, client_id: str):
-	"""Handle chat message via WebSocket with streaming"""
+	"""Handle chat message via WebSocket with enhanced multi-step execution and streaming"""
+	conversation_memory = getattr(manager, 'conversation_memories', {}).get(client_id, ConversationMemory())
+	task_queue = getattr(manager, 'task_queues', {}).get(client_id, ChatTaskQueue())
+	
 	try:
 		message = message_data["message"]
 		llm_provider = message_data.get("llm_provider", "OpenAI")
 		llm_model = message_data.get("llm_model", "gpt-4")
 		api_key = message_data.get("api_key")
+		custom_system_message = message_data.get("custom_system_message")
 		
 		# Save API key if provided
 		if api_key:
 			web_app.save_api_key_to_env(llm_provider, api_key)
 		
+		# Add user message to conversation memory
+		conversation_memory.add_user_message(message)
+		
 		# Send start message
 		await manager.send_message({
-			"type": "chat_response",
+			"type": "chat_stream_update",
 			"data": {
-				"status": "thinking",
-				"message": "Processing your message..."
+				"status": "starting",
+				"message": "Processing your message...",
+				"queue_status": task_queue.get_queue_status()
 			}
 		}, client_id)
 		
 		# Get LLM instance
 		llm = get_llm(llm_provider, llm_model, api_key)
 		
-		# Create chat agent
-		agent = Agent(
+		# Choose system prompt class based on whether custom message is provided
+		if custom_system_message:
+			system_prompt_class = ChatSystemPromptWithCustom
+			system_prompt_kwargs = {"custom_message": custom_system_message}
+		else:
+			system_prompt_class = ChatSystemPromptWithCustom
+			system_prompt_kwargs = {}
+		
+		# Create streaming callback
+		async def streaming_callback(data):
+			await manager.send_message(data, client_id)
+		
+		# Create enhanced chat agent with conversation capabilities
+		agent = ChatAgent(
 			task=f"User message: {message}",
 			llm=llm,
 			controller=Controller(),
-			max_actions_per_step=3,
-			system_prompt_class=ChatSystemPrompt
+			max_actions_per_step=5,  # Allow more actions per step for complex tasks
+			system_prompt_class=system_prompt_class,
+			system_prompt_kwargs=system_prompt_kwargs,
+			conversation_memory=conversation_memory,
+			task_queue=task_queue,
+			streaming_callback=streaming_callback
 		)
 		
-		# Store agent for potential stopping
+		# Store agent and memory for potential stopping and persistence
 		manager.chat_agents[client_id] = agent
+		if not hasattr(manager, 'conversation_memories'):
+			manager.conversation_memories = {}
+		if not hasattr(manager, 'task_queues'):
+			manager.task_queues = {}
+		manager.conversation_memories[client_id] = conversation_memory
+		manager.task_queues[client_id] = task_queue
 		
-		# Run one step to get response
-		await agent.step()
+		# Run conversational agent with multi-step execution
+		results = await agent.run_conversational(max_steps=30)
 		
-		# Extract response
-		if agent._last_result and len(agent._last_result) > 0:
-			last_result = agent._last_result[-1]
-			response = last_result.extracted_content or "I completed your request."
-			success = not bool(last_result.error)
+		# Process final results
+		if results["results"]:
+			final_result = results["results"][-1]
+			response = final_result["result"]
+			success = final_result["success"]
+			
+			# Send final completion message
+			await manager.send_message({
+				"type": "chat_complete",
+				"data": {
+					"status": "completed",
+					"response": response,
+					"success": success,
+					"queue_status": results["queue_status"],
+					"total_tasks_completed": len([r for r in results["results"] if r["success"]])
+				}
+			}, client_id)
 		else:
-			response = "I wasn't able to process your request properly."
-			success = False
-		
-		# Send final response
-		await manager.send_message({
-			"type": "chat_response", 
-			"data": {
-				"status": "completed",
-				"message": response,
-				"success": success
-			}
-		}, client_id)
+			# No results - send error
+			await manager.send_message({
+				"type": "chat_complete",
+				"data": {
+					"status": "error",
+					"response": "I wasn't able to process your request properly.",
+					"success": False,
+					"queue_status": task_queue.get_queue_status()
+				}
+			}, client_id)
 		
 	except Exception as e:
 		logger.error(f"Error in chat message: {e}")
 		await manager.send_message({
-			"type": "chat_response",
+			"type": "chat_complete",
 			"data": {
 				"status": "error",
-				"message": f"Error: {str(e)}",
-				"success": False
+				"response": f"Error: {str(e)}",
+				"success": False,
+				"queue_status": task_queue.get_queue_status() if 'task_queue' in locals() else {}
 			}
 		}, client_id)
 	finally:
-		# Clean up chat agent session
-		if client_id in manager.chat_agents:
-			del manager.chat_agents[client_id]
+		# Note: Don't clean up chat agent session or memory here to maintain persistence
+		# They will be cleaned up when the client disconnects
+		pass
 
 async def handle_stop_agent(client_id: str):
 	"""Stop running agent for client"""
@@ -1006,6 +1634,52 @@ async def handle_stop_chat(client_id: str):
 				"status": "stopped",
 				"message": "Chat stopped by user",
 				"success": False
+			}
+		}, client_id)
+
+async def handle_interrupt_chat(data: dict, client_id: str):
+	"""Interrupt running chat agent for client"""
+	if client_id in manager.chat_agents:
+		agent = manager.chat_agents[client_id]
+		agent.interrupt_execution()
+		await manager.send_message({
+			"type": "chat_stream_update",
+			"data": {
+				"status": "interrupted",
+				"message": "Chat execution interrupted by user"
+			}
+		}, client_id)
+
+async def handle_redirect_chat(data: dict, client_id: str):
+	"""Redirect running chat agent to a new task"""
+	new_task = data.get("task", "")
+	if client_id in manager.chat_agents and new_task:
+		agent = manager.chat_agents[client_id]
+		agent.interrupt_execution(redirect_message=new_task)
+		await manager.send_message({
+			"type": "chat_stream_update",
+			"data": {
+				"status": "redirected",
+				"message": f"Redirecting to new task: {new_task}"
+			}
+		}, client_id)
+
+async def handle_add_task(data: dict, client_id: str):
+	"""Add a new task to the chat agent's queue"""
+	task = data.get("task", "")
+	priority = data.get("priority", "normal")
+	
+	if task and hasattr(manager, 'task_queues') and client_id in manager.task_queues:
+		task_queue = manager.task_queues[client_id]
+		task_id = task_queue.add_task(task, priority)
+		
+		await manager.send_message({
+			"type": "chat_stream_update",
+			"data": {
+				"status": "task_added",
+				"message": f"Added task to queue: {task}",
+				"task_id": task_id,
+				"queue_status": task_queue.get_queue_status()
 			}
 		}, client_id)
 

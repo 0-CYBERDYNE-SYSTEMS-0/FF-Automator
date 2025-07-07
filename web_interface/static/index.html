@@ -107,6 +107,13 @@
 										<label>API Key:</label>
 										<input type="password" id="chat-api-key" class="setting-input" placeholder="Enter API key...">
 									</div>
+									<div class="setting-group">
+										<label>
+											Custom Instructions:
+											<i class="fas fa-question-circle help-icon" title="Add custom instructions that will be appended to the assistant's system prompt. Examples: 'Be concise', 'Use emoji', 'Explain each step'"></i>
+										</label>
+										<textarea id="chat-custom-system" class="setting-textarea" placeholder="Enter custom instructions for the assistant..." rows="4"></textarea>
+									</div>
 								</div>
 							</div>
 						</div>
@@ -151,6 +158,12 @@
 									</button>
 									<button id="stop-chat-btn" class="stop-btn" disabled>
 										<i class="fas fa-stop"></i> Stop
+									</button>
+									<button id="interrupt-chat-btn" class="interrupt-btn" disabled>
+										<i class="fas fa-pause"></i> Interrupt
+									</button>
+									<button id="redirect-chat-btn" class="redirect-btn" disabled>
+										<i class="fas fa-route"></i> Redirect
 									</button>
 								</div>
 								<div class="input-hints">
@@ -226,6 +239,14 @@
 								<div class="form-group">
 									<label for="agent-api-key">API Key</label>
 									<input type="password" id="agent-api-key" placeholder="Enter API key...">
+								</div>
+
+								<div class="form-group">
+									<label for="agent-custom-system">
+										Custom Instructions
+										<i class="fas fa-question-circle help-icon" title="Add custom instructions that will be appended to the agent's system prompt. Examples: 'Be verbose in logs', 'Try alternative methods if stuck', 'Minimize clicks'"></i>
+									</label>
+									<textarea id="agent-custom-system" class="form-control" placeholder="Enter custom instructions for the agent..." rows="4"></textarea>
 								</div>
 
 								<div class="form-actions">

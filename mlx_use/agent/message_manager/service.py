@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import List, Optional, Type
+from typing import List, Optional, Type, Dict, Any
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
@@ -29,6 +29,7 @@ class MessageManager:
 		task: str,
 		action_descriptions: str,
 		system_prompt_class: Type[SystemPrompt],
+		system_prompt_kwargs: Optional[Dict[str, Any]] = None,
 		max_input_tokens: int = 128000,
 		estimated_tokens_per_character: int = 3,
 		image_tokens: int = 800,
@@ -48,10 +49,12 @@ class MessageManager:
 		self.max_error_length = max_error_length
 
 		# Use the updated SystemPrompt with our explicit JSON instructions.
+		system_prompt_kwargs = system_prompt_kwargs or {}
 		system_message = self.system_prompt_class(
 			self.action_descriptions,
 			current_date=datetime.now(),
 			max_actions_per_step=max_actions_per_step,
+			**system_prompt_kwargs
 		).get_system_message()
 
 		self._add_message_with_tokens(system_message)
