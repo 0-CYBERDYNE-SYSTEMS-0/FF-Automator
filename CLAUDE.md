@@ -72,12 +72,27 @@ python standalone_cli.py
 # - Session save/load/list commands
 ```
 
-#### Web Chat Interface
-- New "Chat" tab in Gradio app provides conversational interface
-- Persistent conversation history across sessions
-- Quick action buttons for common tasks
-- Session management with save/load functionality
-- Real-time agent feedback
+#### Enhanced Web Interface
+
+**Launch the modern web interface:**
+```bash
+python web_interface/api/main.py
+# Then open http://localhost:8080 in your browser
+```
+
+**Features:**
+- **Conversational Chat**: Natural language control with autonomous multi-step execution
+- **Agent Mode**: Terminal-style execution with real-time progress
+- **Session Management**: Save, load, and manage conversation history  
+- **Provider Support**: Switch between OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, and LM Studio
+- **Automation Templates**: Quick-start templates for common tasks
+- **Interactive Controls**: Interrupt, redirect, and queue multiple tasks
+- **Real-time Streaming**: Live progress updates and step-by-step feedback
+- **Task Queue System**: Handle multiple requests and follow-ups automatically
+- **Conversation Memory**: Persistent context tracking across interactions
+
+**Enhanced Chat Capabilities:**
+The chat interface now operates with full autonomous multi-step execution - no more stopping after the first action! Complex requests like "Open Calculator, compute 15 * 23, then open Notes and write the result" are executed completely automatically while maintaining conversational interaction.
 
 ### Comprehensive LLM Provider Support (2025)
 

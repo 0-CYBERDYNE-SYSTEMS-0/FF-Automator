@@ -37,9 +37,9 @@ Clone first
 git clone https://github.com/browser-use/macOS-use.git && cd macOS-use
 ```
 
-Don't forget API key <br>Supported providers: [OAI](https://platform.openai.com/docs/quickstart), [Anthropic](https://docs.anthropic.com/en/api/admin-api/apikeys/get-api-key) or [Gemini](https://ai.google.dev/gemini-api/docs/api-key) (deepseek R1 coming soon!)
+Don't forget API key <br>Supported providers: [OpenAI](https://platform.openai.com/docs/quickstart), [Anthropic](https://docs.anthropic.com/en/api/admin-api/apikeys/get-api-key), [Google Gemini](https://ai.google.dev/gemini-api/docs/api-key), [DeepSeek](https://platform.deepseek.com/), [OpenRouter](https://openrouter.ai/), or run locally with [Ollama](https://ollama.ai)/[LM Studio](https://lmstudio.ai/)
 
-<br> At the moment, macOS-use works best with OAI or Anthropic API, although Gemini is free. While Gemini works great too, it is not as reliable.
+<br> At the moment, macOS-use works best with OpenAI or Anthropic APIs, although Gemini is free. Local models work great for privacy-focused use cases.
 <br>
 
 ```bash
@@ -57,7 +57,7 @@ We recommend using macOS-use with uv environment
 brew install uv && uv venv && source .venv/bin/activate
 ```
 
-Install locally and you're good to go! try the first exmaple!
+Install locally and you're good to go! try the first example!
 <br>
 
 ```bash
@@ -65,10 +65,30 @@ uv pip install --editable . && python examples/try.py
 
 ```
 
-Try prompting it with
+## 🌐 Web Interface
+
+Launch the modern web interface for conversational automation:
 
 ```bash
-open the calculator app
+python web_interface/api/main.py
+```
+
+Then open [http://localhost:8080](http://localhost:8080) in your browser.
+
+### Features:
+- **Conversational Chat**: Natural language control with autonomous multi-step execution
+- **Agent Mode**: Terminal-style execution with real-time progress
+- **Session Management**: Save, load, and manage conversation history
+- **Provider Support**: Switch between OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, and LM Studio
+- **Automation Templates**: Quick-start templates for common tasks
+- **Interactive Controls**: Interrupt, redirect, and queue multiple tasks
+
+Try prompting it with complex requests like:
+
+```bash
+"Open Calculator, compute 15 * 23, then open Notes and write the result"
+"Go to GitHub, find trending repositories, and create a note with the top 3"
+"Check my system information and create an email draft with the details"
 ```
 
 # Demos
@@ -127,12 +147,18 @@ This project aimes to build the AI agent for the MLX by Apple framework that wou
 - [ ] Improve self-correction.
 - [x] Adding ability to check which apps the machine has installed.
 - [x] Add feature to allow the agent to check existing apps if failing, e.g. calendar app actual name is iCal.
+- [x] Enhanced conversational chat interface with multi-step autonomous execution.
+- [x] Comprehensive LLM provider support (OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, LM Studio).
+- [x] Web interface with real-time streaming and interactive controls.
+- [x] Session management and conversation history persistence.
+- [x] Task queue system for handling multiple requests and follow-ups.
 - [ ] Add action for the agent to ask input from the user.
 - [ ] Test Test Test! and let us know what and how to improve!
 - [ ] Make task cheaper and more efficient.
 
 2. Support local inference with small fine tuned model.
 
+- [x] Add support for inference with local models using Ollama and LM Studio.
 - [ ] Add support for inference with local models using mlx and mlx-vlm.
 - [ ] Fine tune a small model that every device can run inference with.
 - [ ] SOTA reliability.
