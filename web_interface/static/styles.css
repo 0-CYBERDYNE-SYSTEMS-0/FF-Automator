@@ -613,26 +613,58 @@ body {
 }
 
 .send-btn {
-	width: 44px;
 	height: 44px;
 	border: none;
 	background: var(--primary-color);
 	color: white;
-	border-radius: 50%;
+	border-radius: var(--radius-md);
 	cursor: pointer;
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	gap: var(--spacing-xs);
 	transition: all var(--transition-fast);
 	flex-shrink: 0;
+	padding: 0 var(--spacing-md);
+	font-size: 0.875rem;
+	font-weight: 500;
 }
 
 .send-btn:hover {
 	background: var(--primary-hover);
-	transform: scale(1.05);
+	transform: translateY(-1px);
 }
 
 .send-btn:disabled {
+	background: var(--gray-300);
+	cursor: not-allowed;
+	transform: none;
+}
+
+.stop-btn {
+	height: 44px;
+	border: none;
+	background: var(--danger-color);
+	color: white;
+	border-radius: var(--radius-md);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--spacing-xs);
+	transition: all var(--transition-fast);
+	flex-shrink: 0;
+	padding: 0 var(--spacing-md);
+	font-size: 0.875rem;
+	font-weight: 500;
+}
+
+.stop-btn:hover:not(:disabled) {
+	background: #dc3545;
+	transform: translateY(-1px);
+}
+
+.stop-btn:disabled {
 	background: var(--gray-300);
 	cursor: not-allowed;
 	transform: none;

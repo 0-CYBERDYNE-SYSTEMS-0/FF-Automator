@@ -16,7 +16,8 @@ from mlx_use.controller.views import (
 	OpenAppAction,
 	RightClickElementAction,
 	AppleScriptAction,
-	ScrollElementAction
+	ScrollElementAction,
+	ReplyAction
 )
 from mlx_use.mac.actions import click, type_into, right_click, scroll
 from mlx_use.mac.tree import MacUITreeBuilder
@@ -42,6 +43,12 @@ class Controller:
 				param_model=DoneAction)
 		async def done(text: str):
 			return ActionResult(extracted_content=text, is_done=True)
+
+		@self.registry.action(
+				'Reply to user with conversational message (use this for chat responses that don\'t require automation)',
+				param_model=ReplyAction)
+		async def reply(message: str):
+			return ActionResult(extracted_content=message, include_in_memory=True)
 
 		@self.registry.action(
 				'Input text', 

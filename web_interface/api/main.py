@@ -23,6 +23,7 @@ from dotenv import load_dotenv, set_key
 
 # Import from existing project
 from mlx_use.agent.service import Agent
+from mlx_use.agent.prompts import SystemPrompt
 from mlx_use.controller.service import Controller
 
 # Load environment variables
@@ -30,11 +31,99 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+class ChatSystemPrompt(SystemPrompt):
+	"""System prompt optimized for chat interactions with macOS automation"""
+	
+	def important_rules(self) -> str:
+		"""Chat-optimized rules that emphasize conversational responses"""
+		text = """
+1. RESPONSE FORMAT:
+   You must ALWAYS respond with a valid JSON object that has EXACTLY two keys:
+     {
+     "current_state": {
+       "evaluation_previous_goal": "Success|Failed|Unknown - Analyze if the user's request was completed",
+       "memory": "What you've done and learned from this interaction", 
+       "next_goal": "How to help the user next"
+     },
+     "action": [
+       {
+         "action_name": {
+           // action parameters
+         }
+       }
+     ]
+   }
+
+2. CHAT BEHAVIOR:
+   - Use the "reply" action for conversational responses that don't need automation
+   - Use macOS actions (open_app, click_element, etc.) when the user asks for specific tasks
+   - Always be helpful and explain what you're doing
+   - If you can't complete a task, explain why and suggest alternatives
+
+3. ACTION SELECTION:
+   - For simple questions/chat: Use "reply" action with your response
+   - For automation requests: Use appropriate macOS actions (open_app, click_element, etc.)
+   - For task completion: Use "done" action with final results
+   - You can chain multiple actions, but prioritize clear communication
+
+4. EXAMPLES:
+   - User: "How are you?" → Use "reply" action
+   - User: "Open Notes app" → Use "open_app" action then "reply" to confirm
+   - User: "What's the weather?" → Use "reply" to explain you can't check weather directly
+   - User: "Find my system info note" → Use "open_app" for Notes, then search actions
+"""
+		return text
+
+	def get_user_prompt(self, task: str, action_descriptions: str, state: str, include_attributes: List[str], 
+						max_error_length: int, last_result: Optional[list] = None, 
+						step_info: Optional[any] = None) -> str:
+		"""Chat-optimized user prompt"""
+		
+		prompt = f"""You are a helpful AI assistant for macOS automation. You can both have conversations and perform automation tasks.
+
+AVAILABLE ACTIONS:
+{action_descriptions}
+
+CURRENT TASK: {task}
+
+IMPORTANT BEHAVIORAL RULES:
+{self.important_rules()}
+
+CURRENT STATE:
+{state if state else "Starting conversation - no app is currently active."}
+"""
+
+		if last_result:
+			prompt += f"\nPREVIOUS ACTION RESULTS:\n"
+			for result in last_result:
+				if result.extracted_content:
+					prompt += f"✅ {result.extracted_content}\n"
+				if result.error:
+					error = result.error[:max_error_length] if max_error_length > 0 else result.error
+					prompt += f"❌ Error: {error}\n"
+
+		prompt += f"""
+TASK ANALYSIS:
+- If this is a simple conversation/question, use the "reply" action
+- If this requires macOS automation, use the appropriate actions
+- Always communicate clearly about what you're doing
+
+Remember: You can both chat naturally AND perform automation tasks. Choose the right approach for each user message.
+
+Current date and time: {self.current_date}
+Maximum actions per step: {self.max_actions_per_step}
+
+Respond with valid JSON following the exact format specified above."""
+
+		return prompt
+
 # Import the exact same models from the Gradio app
 LLM_MODELS = {
     "OpenAI": [
         # Latest 2025 models
         "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
         "o3",
         "o4-mini", 
         "o3-pro",
@@ -472,6 +561,7 @@ class ConnectionManager:
 	def __init__(self):
 		self.active_connections: Dict[str, WebSocket] = {}
 		self.agent_sessions: Dict[str, Agent] = {}
+		self.chat_agents: Dict[str, Agent] = {}  # Track chat agents separately
 
 	async def connect(self, websocket: WebSocket, client_id: str):
 		await websocket.accept()
@@ -482,6 +572,8 @@ class ConnectionManager:
 			del self.active_connections[client_id]
 		if client_id in self.agent_sessions:
 			del self.agent_sessions[client_id]
+		if client_id in self.chat_agents:
+			del self.chat_agents[client_id]
 
 	async def send_message(self, message: dict, client_id: str):
 		if client_id in self.active_connections:
@@ -667,23 +759,39 @@ async def delete_session(session_name: str):
 
 @app.post("/api/chat/send")
 async def send_chat_message(request: ChatMessage):
-	"""Send a chat message and get response"""
+	"""Send a chat message using the full agent system"""
 	try:
 		# Save API key if provided
 		if request.api_key:
 			web_app.save_api_key_to_env(request.llm_provider, request.api_key)
 		
-		# Get response from agent
-		response = await web_app.get_llm_response(
-			system_message="You are a helpful AI assistant for macOS automation. Respond naturally to user messages.",
-			user_message=request.message,
-			llm_provider=request.llm_provider,
-			llm_model=request.llm_model
+		# Get LLM instance
+		llm = get_llm(request.llm_provider, request.llm_model, request.api_key)
+		
+		# Create agent with chat-optimized system prompt
+		agent = Agent(
+			task=f"User message: {request.message}",
+			llm=llm,
+			controller=Controller(),
+			max_actions_per_step=3,  # Allow multiple actions for complex requests
+			system_prompt_class=ChatSystemPrompt  # We'll create this
 		)
+		
+		# Run just one step to get the response
+		await agent.step()
+		
+		# Extract the response from the agent's last result
+		if agent._last_result and len(agent._last_result) > 0:
+			last_result = agent._last_result[-1]
+			response = last_result.extracted_content or "I completed your request."
+			success = not bool(last_result.error)
+		else:
+			response = "I wasn't able to process your request properly."
+			success = False
 		
 		return JSONResponse(content={
 			"response": response,
-			"success": True
+			"success": success
 		})
 	except Exception as e:
 		logger.error(f"Error in chat: {e}")
@@ -703,8 +811,12 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 			
 			if message["type"] == "agent_task":
 				await handle_agent_task(message["data"], client_id)
+			elif message["type"] == "chat_message":
+				await handle_chat_message(message["data"], client_id)
 			elif message["type"] == "stop_agent":
 				await handle_stop_agent(client_id)
+			elif message["type"] == "stop_chat":
+				await handle_stop_chat(client_id)
 			elif message["type"] == "ping":
 				await manager.send_message({"type": "pong"}, client_id)
 				
@@ -800,6 +912,79 @@ async def handle_agent_task(task_data: dict, client_id: str):
 		if client_id in manager.agent_sessions:
 			del manager.agent_sessions[client_id]
 
+async def handle_chat_message(message_data: dict, client_id: str):
+	"""Handle chat message via WebSocket with streaming"""
+	try:
+		message = message_data["message"]
+		llm_provider = message_data.get("llm_provider", "OpenAI")
+		llm_model = message_data.get("llm_model", "gpt-4")
+		api_key = message_data.get("api_key")
+		
+		# Save API key if provided
+		if api_key:
+			web_app.save_api_key_to_env(llm_provider, api_key)
+		
+		# Send start message
+		await manager.send_message({
+			"type": "chat_response",
+			"data": {
+				"status": "thinking",
+				"message": "Processing your message..."
+			}
+		}, client_id)
+		
+		# Get LLM instance
+		llm = get_llm(llm_provider, llm_model, api_key)
+		
+		# Create chat agent
+		agent = Agent(
+			task=f"User message: {message}",
+			llm=llm,
+			controller=Controller(),
+			max_actions_per_step=3,
+			system_prompt_class=ChatSystemPrompt
+		)
+		
+		# Store agent for potential stopping
+		manager.chat_agents[client_id] = agent
+		
+		# Run one step to get response
+		await agent.step()
+		
+		# Extract response
+		if agent._last_result and len(agent._last_result) > 0:
+			last_result = agent._last_result[-1]
+			response = last_result.extracted_content or "I completed your request."
+			success = not bool(last_result.error)
+		else:
+			response = "I wasn't able to process your request properly."
+			success = False
+		
+		# Send final response
+		await manager.send_message({
+			"type": "chat_response", 
+			"data": {
+				"status": "completed",
+				"message": response,
+				"success": success
+			}
+		}, client_id)
+		
+	except Exception as e:
+		logger.error(f"Error in chat message: {e}")
+		await manager.send_message({
+			"type": "chat_response",
+			"data": {
+				"status": "error",
+				"message": f"Error: {str(e)}",
+				"success": False
+			}
+		}, client_id)
+	finally:
+		# Clean up chat agent session
+		if client_id in manager.chat_agents:
+			del manager.chat_agents[client_id]
+
 async def handle_stop_agent(client_id: str):
 	"""Stop running agent for client"""
 	if client_id in manager.agent_sessions:
@@ -808,6 +993,20 @@ async def handle_stop_agent(client_id: str):
 		await manager.send_stream_update({
 			"status": "stopped",
 			"message": "Agent execution stopped by user"
+		}, client_id)
+
+async def handle_stop_chat(client_id: str):
+	"""Stop running chat agent for client"""
+	if client_id in manager.chat_agents:
+		agent = manager.chat_agents[client_id]
+		agent._stopped = True
+		await manager.send_message({
+			"type": "chat_response",
+			"data": {
+				"status": "stopped",
+				"message": "Chat stopped by user",
+				"success": False
+			}
 		}, client_id)
 
 if __name__ == "__main__":

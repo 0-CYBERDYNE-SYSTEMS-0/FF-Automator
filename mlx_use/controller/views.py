@@ -30,6 +30,9 @@ class ScrollElementAction(BaseModel):
 	index: int
 	direction: Literal['up', 'down', 'left', 'right']
 
+class ReplyAction(BaseModel):
+	message: str
+
 # # Action Input Models
 # class SearchGoogleAction(BaseModel):
 # 	query: str

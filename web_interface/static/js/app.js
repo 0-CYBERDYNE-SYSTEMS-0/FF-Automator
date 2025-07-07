@@ -15,6 +15,7 @@ class MacOSAutomationApp {
 		this.automationTemplates = {};
 		this.currentAutomationCategory = 'Quick Tasks';
 		this.isAgentRunning = false;
+		this.isChatRunning = false;
 		
 		this.init();
 	}
@@ -89,6 +90,7 @@ class MacOSAutomationApp {
 	setupChatListeners() {
 		const chatInput = document.getElementById('chat-input');
 		const sendBtn = document.getElementById('send-chat-btn');
+		const stopBtn = document.getElementById('stop-chat-btn');
 		const clearBtn = document.getElementById('clear-chat-btn');
 		const saveBtn = document.getElementById('save-chat-btn');
 
@@ -102,6 +104,9 @@ class MacOSAutomationApp {
 
 		// Send button
 		sendBtn.addEventListener('click', () => this.sendChatMessage());
+
+		// Stop button
+		stopBtn.addEventListener('click', () => this.stopChat());
 
 		// Clear chat
 		clearBtn.addEventListener('click', () => this.clearChat());
@@ -226,6 +231,15 @@ class MacOSAutomationApp {
 			case 'stream_update':
 				this.handleAgentStreamUpdate(message.data);
 				break;
+			case 'chat_response':
+				this.handleChatResponse(message.data);
+				break;
+			case 'chat_complete':
+				this.handleChatComplete(message.data);
+				break;
+			case 'chat_error':
+				this.handleChatError(message.data);
+				break;
 			default:
 				console.log('Unknown message type:', message);
 		}
@@ -271,6 +285,8 @@ class MacOSAutomationApp {
 
 	// Chat Functionality
 	async sendChatMessage() {
+		if (this.isChatRunning) return;
+		
 		const input = document.getElementById('chat-input');
 		const message = input.value.trim();
 		
@@ -284,42 +300,37 @@ class MacOSAutomationApp {
 		this.addChatMessage(message, 'user');
 		input.value = '';
 
-		// Show typing indicator
-		const typingId = this.addTypingIndicator();
+		// Update UI state
+		this.isChatRunning = true;
+		this.updateChatUI(true);
 
-		try {
-			const response = await fetch(`${this.apiBase}/api/chat/send`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
+		// Show typing indicator
+		this.currentChatTypingId = this.addTypingIndicator();
+
+		// Send via WebSocket
+		if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+			this.socket.send(JSON.stringify({
+				type: 'chat_message',
+				data: {
 					message,
 					llm_provider: provider,
 					llm_model: model,
 					api_key: apiKey
-				})
+				}
+			}));
+
+			// Update conversation history with user message
+			this.conversationHistory.push({
+				type: 'user',
+				content: message,
+				timestamp: new Date().toISOString(),
+				success: true
 			});
-
-			const data = await response.json();
-			
-			// Remove typing indicator
-			this.removeTypingIndicator(typingId);
-
-			// Add assistant response
-			this.addChatMessage(data.response, 'assistant', data.success);
-
-			// Update conversation history
-			this.conversationHistory.push(
-				{ type: 'user', content: message, timestamp: new Date().toISOString(), success: true },
-				{ type: 'assistant', content: data.response, timestamp: new Date().toISOString(), success: data.success }
-			);
-
-		} catch (error) {
-			console.error('Chat error:', error);
-			this.removeTypingIndicator(typingId);
-			this.addChatMessage('Sorry, I encountered an error processing your message.', 'assistant', false);
-			this.showToast('Failed to send message', 'error');
+		} else {
+			this.showToast('WebSocket not connected', 'error');
+			this.removeTypingIndicator(this.currentChatTypingId);
+			this.isChatRunning = false;
+			this.updateChatUI(false);
 		}
 	}
 
@@ -417,6 +428,93 @@ class MacOSAutomationApp {
 		this.showToast('Chat cleared', 'info');
 	}
 
+	stopChat() {
+		if (!this.isChatRunning) return;
+
+		if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+			this.socket.send(JSON.stringify({ type: 'stop_chat' }));
+		}
+
+		// Remove typing indicator
+		if (this.currentChatTypingId) {
+			this.removeTypingIndicator(this.currentChatTypingId);
+			this.currentChatTypingId = null;
+		}
+
+		this.isChatRunning = false;
+		this.updateChatUI(false);
+		this.showToast('Chat stopped', 'info');
+	}
+
+	updateChatUI(running) {
+		const sendBtn = document.getElementById('send-chat-btn');
+		const stopBtn = document.getElementById('stop-chat-btn');
+		const chatInput = document.getElementById('chat-input');
+
+		sendBtn.disabled = running;
+		stopBtn.disabled = !running;
+		chatInput.disabled = running;
+
+		if (running) {
+			sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+		} else {
+			sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+		}
+	}
+
+	handleChatResponse(data) {
+		// Stream update - add partial content or update existing message
+		if (data.streaming && this.currentChatTypingId) {
+			// Update the typing indicator with partial content
+			const typingEl = document.getElementById(this.currentChatTypingId);
+			if (typingEl) {
+				const bubble = typingEl.querySelector('.message-bubble');
+				if (bubble) {
+					bubble.innerHTML = this.formatMessageContent(data.content || 'Thinking...');
+				}
+			}
+		}
+	}
+
+	handleChatComplete(data) {
+		// Remove typing indicator
+		if (this.currentChatTypingId) {
+			this.removeTypingIndicator(this.currentChatTypingId);
+			this.currentChatTypingId = null;
+		}
+
+		// Add final assistant response
+		this.addChatMessage(data.response, 'assistant', data.success);
+
+		// Update conversation history
+		this.conversationHistory.push({
+			type: 'assistant',
+			content: data.response,
+			timestamp: new Date().toISOString(),
+			success: data.success
+		});
+
+		// Update UI state
+		this.isChatRunning = false;
+		this.updateChatUI(false);
+	}
+
+	handleChatError(data) {
+		// Remove typing indicator
+		if (this.currentChatTypingId) {
+			this.removeTypingIndicator(this.currentChatTypingId);
+			this.currentChatTypingId = null;
+		}
+
+		// Add error message
+		this.addChatMessage('Sorry, I encountered an error processing your message.', 'assistant', false);
+		this.showToast(data.error || 'Chat error occurred', 'error');
+
+		// Update UI state
+		this.isChatRunning = false;
+		this.updateChatUI(false);
+	}
+
 	// Automation Templates
 	async loadAutomationTemplates() {
 		try {
@@ -482,6 +580,10 @@ class MacOSAutomationApp {
 	}
 
 	executeAutomation(prompt) {
+		if (this.isChatRunning) {
+			this.showToast('Chat is currently running, please wait...', 'warning');
+			return;
+		}
 		document.getElementById('chat-input').value = prompt;
 		this.sendChatMessage();
 	}
