@@ -1,9 +1,9 @@
 /**
- * macOS Automation - Elegant Interface JavaScript Application
+ * FF-Terminal:Desktop_ver - Elegant Interface JavaScript Application
  * Modern vanilla JavaScript implementation with component architecture
  */
 
-class MacOSAutomationApp {
+class FFTerminalApp {
 	constructor() {
 		this.apiBase = 'http://localhost:8080';
 		this.wsUrl = 'ws://localhost:8080';
@@ -18,6 +18,7 @@ class MacOSAutomationApp {
 		this.isChatRunning = false;
 		this.savedAutomations = [];
 		this.scheduledAutomations = [];
+		this.currentAgentExecution = null; // Track current agent execution for saving
 		
 		this.init();
 	}
@@ -137,11 +138,13 @@ class MacOSAutomationApp {
 		const stopBtn = document.getElementById('stop-agent-btn');
 		const refineBtn = document.getElementById('refine-task-btn');
 		const clearTerminalBtn = document.getElementById('clear-terminal-btn');
+		const saveAgentBtn = document.getElementById('save-agent-automation-btn');
 
 		runBtn.addEventListener('click', () => this.runAgent());
 		stopBtn.addEventListener('click', () => this.stopAgent());
 		refineBtn.addEventListener('click', () => this.refineTask());
 		clearTerminalBtn.addEventListener('click', () => this.clearTerminal());
+		saveAgentBtn.addEventListener('click', () => this.saveAgentAsAutomation());
 
 		// Provider changes
 		document.getElementById('agent-provider').addEventListener('change', (e) => {
@@ -440,8 +443,8 @@ class MacOSAutomationApp {
 			<div class="welcome-message">
 				<div class="welcome-content">
 					<i class="fas fa-robot"></i>
-					<h3>Welcome to macOS Automation!</h3>
-					<p>I'm your AI assistant for automating macOS tasks. You can:</p>
+					<h3>Welcome to FF-Terminal:Desktop_ver!</h3>
+					<p>I'm your AI assistant for automating desktop tasks. You can:</p>
 					<ul>
 						<li>Ask me to control applications and perform tasks</li>
 						<li>Use natural language to describe what you want to do</li>
@@ -728,6 +731,11 @@ class MacOSAutomationApp {
 		const model = document.getElementById('agent-model').value;
 		const apiKey = document.getElementById('agent-api-key').value;
 
+		// Reset execution tracking for new run
+		this.currentAgentExecution = null;
+		const saveBtn = document.getElementById('save-agent-automation-btn');
+		saveBtn.disabled = true;
+
 		this.isAgentRunning = true;
 		this.updateAgentUI(true);
 
@@ -786,16 +794,47 @@ class MacOSAutomationApp {
 			this.addTerminalLine(message, status);
 		}
 
+		// Track execution data for saving
+		if (!this.currentAgentExecution) {
+			this.currentAgentExecution = {
+				task: document.getElementById('agent-task').value,
+				status: status,
+				steps: [],
+				provider: document.getElementById('agent-provider').value,
+				model: document.getElementById('agent-model').value,
+				custom_system: document.getElementById('agent-custom-system').value,
+				started_at: new Date().toISOString()
+			};
+		}
+
+		// Update execution tracking
+		this.currentAgentExecution.status = status;
+		if (message) {
+			this.currentAgentExecution.steps.push({
+				step: step,
+				message: message,
+				status: status,
+				timestamp: new Date().toISOString()
+			});
+		}
+
 		// Handle completion
-		if (status === 'completed' || status === 'failed' || status === 'error') {
+		if (status === 'completed' || status === 'failed' || status === 'error' || status === 'stopped') {
 			this.isAgentRunning = false;
 			this.updateAgentUI(false);
 
 			if (final_result) {
 				this.showAgentResult(final_result);
+				this.currentAgentExecution.final_result = final_result;
 			}
 
-			const toastType = status === 'completed' ? 'success' : 'error';
+			this.currentAgentExecution.completed_at = new Date().toISOString();
+
+			// Enable save button only on successful completion
+			const saveBtn = document.getElementById('save-agent-automation-btn');
+			saveBtn.disabled = status !== 'completed';
+
+			const toastType = status === 'completed' ? 'success' : (status === 'stopped' ? 'warning' : 'error');
 			this.showToast(message || `Agent ${status}`, toastType);
 		}
 	}
@@ -876,13 +915,34 @@ class MacOSAutomationApp {
 		refineBtn.disabled = true;
 
 		try {
-			const response = await fetch(`${this.apiBase}/api/chat/send`, {
+			const systemMessage = `You are a helpful assistant that refines user prompts for a FF-Terminal:Desktop_ver agent.
+The user has provided a prompt: "${originalTask}"
+
+Your task is to refine this prompt to make it more specific, clearer, and more likely to succeed when executed on macOS.
+For this purpose the agent can preform the following actions:
+- Open an app
+- Click on an element
+- Type text into a field
+- Create an AppleScript
+          
+GENERAL PRINCIPLES:
+1. Include useful details that make the task clear and executable (e.g Open [app name], click on the [element name])
+2. Don't change the intent of the original prompt!
+3. If the task involves multiple steps, break it down into smaller steps
+4. When prompting for opening an app, ALWAYS prompt with "open 'app name'"
+5. When prompting for opening a browser, prompt with "open a new window"
+6. Dont take the user sequence as granted, decide for yourself what is the best way to accomplish the task
+
+Only return the refined prompt text, nothing else.`;
+
+			const response = await fetch(`${this.apiBase}/api/refine-prompt`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					message: `Please refine this task to be more specific and actionable for macOS automation: "${originalTask}"`,
+					message: originalTask,
+					system_message: systemMessage,
 					llm_provider: provider,
 					llm_model: model,
 					api_key: apiKey
@@ -1284,6 +1344,77 @@ class MacOSAutomationApp {
 		} catch (error) {
 			console.error('Failed to load saved automations:', error);
 		}
+	}
+
+	async saveAgentAsAutomation() {
+		if (!this.currentAgentExecution || this.currentAgentExecution.status !== 'completed') {
+			this.showToast('No successful agent execution to save as automation', 'warning');
+			return;
+		}
+
+		const modal = document.createElement('div');
+		modal.className = 'modal-overlay';
+		modal.innerHTML = `
+			<div class="modal-content">
+				<h3>Save Agent as Automation</h3>
+				<form id="save-agent-automation-form">
+					<div class="form-group">
+						<label for="agent-automation-name">Automation Name</label>
+						<input type="text" id="agent-automation-name" required placeholder="Enter automation name" value="${this.currentAgentExecution.task.substring(0, 50)}">
+					</div>
+					<div class="form-group">
+						<label for="agent-automation-description">Description (optional)</label>
+						<textarea id="agent-automation-description" placeholder="Describe what this automation does">${this.currentAgentExecution.task}</textarea>
+					</div>
+					<div class="form-group">
+						<label for="agent-automation-category">Category</label>
+						<input type="text" id="agent-automation-category" placeholder="e.g. Productivity, Communication" value="Agent Tasks">
+					</div>
+					<div class="form-group">
+						<label for="agent-automation-tags">Tags (comma-separated)</label>
+						<input type="text" id="agent-automation-tags" placeholder="e.g. automation, agent, task">
+					</div>
+					<div class="modal-buttons">
+						<button type="button" class="secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+						<button type="submit" class="primary">Save Automation</button>
+					</div>
+				</form>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+
+		const form = modal.querySelector('#save-agent-automation-form');
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+
+			const name = document.getElementById('agent-automation-name').value;
+			const description = document.getElementById('agent-automation-description').value;
+			const category = document.getElementById('agent-automation-category').value;
+			const tags = document.getElementById('agent-automation-tags').value;
+
+			if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+				this.socket.send(JSON.stringify({
+					type: 'save_automation',
+					data: {
+						name,
+						description,
+						task: this.currentAgentExecution.task,
+						category,
+						tags,
+						custom_system_message: this.currentAgentExecution.custom_system,
+						llm_provider: this.currentAgentExecution.provider,
+						llm_model: this.currentAgentExecution.model,
+						execution_data: this.currentAgentExecution
+					}
+				}));
+
+				modal.remove();
+				this.showToast('Saving automation...', 'info');
+			} else {
+				this.showToast('WebSocket not connected', 'error');
+			}
+		});
 	}
 
 	async saveCurrentChatAsAutomation() {
@@ -1797,5 +1928,5 @@ class MacOSAutomationApp {
 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-	window.app = new MacOSAutomationApp();
+	window.app = new FFTerminalApp();
 });

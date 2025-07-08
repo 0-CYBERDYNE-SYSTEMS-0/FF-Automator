@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-macOS-use Interactive CLI
-A natural language interface for controlling macOS applications
+FF-Terminal:Desktop_ver Interactive CLI
+A natural language interface for controlling desktop applications
 """
 
 import sys

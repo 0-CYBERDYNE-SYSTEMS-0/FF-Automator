@@ -8,6 +8,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 LLM_MODELS = {
     "OpenAI": [
         # Latest 2025 models
+        "gpt-4.1-mini",
         "gpt-4.1",
         "o3",
         "o4-mini", 
@@ -96,7 +97,7 @@ LLM_MODELS = {
 MODEL_CATEGORIES = {
     "OpenAI": {
         "reasoning": ["o3", "o3-pro", "o4-mini", "o4-mini-high", "o3-mini"],
-        "chat": ["gpt-4.1", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
+        "chat": ["gpt-4.1-mini", "gpt-4.1", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
         "legacy": ["gpt-3.5-turbo"]
     },
     "Anthropic": {
@@ -196,8 +197,8 @@ def get_llm(provider: str, model: str, api_key: str = None) -> Optional[object]:
                 api_key=SecretStr(api_key),
                 base_url="https://openrouter.ai/api/v1",
                 default_headers={
-                    "HTTP-Referer": "https://macOS-use-app.local",
-                    "X-Title": "macOS-use Agent",
+                    "HTTP-Referer": "https://FF-Terminal-app.local",
+                    "X-Title": "FF-Terminal:Desktop_ver Agent",
                     "Content-Type": "application/json"
                 },
                 model_kwargs={
@@ -258,8 +259,8 @@ def check_provider_availability(provider: str) -> bool:
             try:
                 headers = {
                     "Authorization": f"Bearer {api_key}",
-                    "HTTP-Referer": "https://macOS-use-app.local",
-                    "X-Title": "macOS-use Agent",
+                    "HTTP-Referer": "https://FF-Terminal-app.local",
+                    "X-Title": "FF-Terminal:Desktop_ver Agent",
                     "Content-Type": "application/json"
                 }
                 response = requests.get("https://openrouter.ai/api/v1/models", 
@@ -299,8 +300,8 @@ def get_available_models(provider: str) -> List[str]:
                 print("🔄 Fetching live OpenRouter models...")
                 headers = {
                     "Authorization": f"Bearer {api_key}",
-                    "HTTP-Referer": "https://macOS-use-app.local",
-                    "X-Title": "macOS-use Agent",
+                    "HTTP-Referer": "https://FF-Terminal-app.local",
+                    "X-Title": "FF-Terminal:Desktop_ver Agent",
                     "Content-Type": "application/json"
                 }
                 response = requests.get("https://openrouter.ai/api/v1/models", 
@@ -378,13 +379,13 @@ def get_recommended_models_by_task(task_type: str = "general") -> Dict[str, List
             "Google": ["gemini-2.5-pro"]
         },
         "coding": {
-            "OpenAI": ["o3", "gpt-4.1"],
+            "OpenAI": ["o3", "gpt-4.1-mini", "gpt-4.1"],
             "Anthropic": ["claude-4-sonnet", "claude-3-5-sonnet-20241022"],
             "DeepSeek": ["deepseek-chat", "deepseek-v3"],
             "Google": ["gemini-2.5-flash"]
         },
         "chat": {
-            "OpenAI": ["gpt-4.1", "gpt-4o"],
+            "OpenAI": ["gpt-4.1-mini", "gpt-4.1", "gpt-4o"],
             "Anthropic": ["claude-4-sonnet", "claude-3-5-sonnet-20241022"],
             "Google": ["gemini-2.5-flash", "gemini-2.0-flash-exp"],
             "DeepSeek": ["deepseek-chat"]

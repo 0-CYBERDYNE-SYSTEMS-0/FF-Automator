@@ -580,6 +580,15 @@ class MacOSUseGradioApp:
             finally:
                 self._cleanup_state()
             
+        except asyncio.CancelledError:
+            # Handle task cancellation gracefully
+            final_output = self.get_terminal_output()
+            yield (
+                final_output + "\n⏹️ Agent execution cancelled by user",
+                gr.update(interactive=True),
+                gr.update(interactive=False),
+                gr.update(value="Agent execution cancelled")
+            )
         except Exception as e:
             error_details = f"Error Details:\n{traceback.format_exc()}"
             error_msg = f"Error occurred:\n{str(e)}\n\n{error_details}"

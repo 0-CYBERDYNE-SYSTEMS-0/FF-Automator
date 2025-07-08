@@ -1443,7 +1443,7 @@ body {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	background: var(--background-color);
+	background: var(--gray-50);
 }
 
 .automations-header {
@@ -1451,7 +1451,7 @@ body {
 	justify-content: space-between;
 	align-items: center;
 	padding: var(--spacing-xl) var(--spacing-xl) var(--spacing-lg) var(--spacing-xl);
-	background: var(--background-color);
+	background: var(--gray-50);
 	border-bottom: none;
 }
 
@@ -1459,7 +1459,7 @@ body {
 	margin: 0;
 	font-size: 28px;
 	font-weight: 700;
-	color: var(--text-primary);
+	color: var(--gray-800);
 	display: flex;
 	align-items: center;
 	gap: var(--spacing-md);
@@ -1482,26 +1482,26 @@ body {
 }
 
 .automations-actions .btn-primary {
-	background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+	background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
 	color: white;
 	border: none;
-	box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+	box-shadow: var(--shadow-md);
 }
 
 .automations-actions .btn-primary:hover {
 	transform: translateY(-1px);
-	box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+	box-shadow: var(--shadow-lg);
 }
 
 .automations-actions .btn-secondary {
-	background: var(--card-background);
-	color: var(--text-secondary);
-	border: 1px solid var(--border-color);
+	background: white;
+	color: var(--gray-600);
+	border: 1px solid var(--gray-300);
 }
 
 .automations-actions .btn-secondary:hover {
-	background: var(--background-color);
-	color: var(--text-primary);
+	background: var(--gray-50);
+	color: var(--gray-800);
 	border-color: var(--primary-color);
 }
 
@@ -1510,17 +1510,17 @@ body {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
-	background: var(--card-background);
+	background: white;
 	margin: 0 var(--spacing-xl) var(--spacing-xl) var(--spacing-xl);
-	border-radius: var(--border-radius-lg);
+	border-radius: var(--radius-lg);
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .automations-tabs {
 	display: flex;
-	background: var(--card-background);
-	border-bottom: 1px solid var(--border-color);
-	border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+	background: white;
+	border-bottom: 1px solid var(--gray-200);
+	border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 	padding: var(--spacing-md);
 	gap: var(--spacing-xs);
 }
@@ -1530,7 +1530,7 @@ body {
 	padding: var(--spacing-md) var(--spacing-lg);
 	background: transparent;
 	border: none;
-	color: var(--text-secondary);
+	color: var(--gray-600);
 	cursor: pointer;
 	transition: all 0.2s ease;
 	display: flex;
@@ -1538,13 +1538,13 @@ body {
 	justify-content: center;
 	gap: var(--spacing-sm);
 	font-weight: 500;
-	border-radius: var(--border-radius);
+	border-radius: var(--radius-md);
 	font-size: 14px;
 }
 
 .automation-tab-btn:hover {
-	background: var(--background-color);
-	color: var(--text-primary);
+	background: var(--gray-50);
+	color: var(--gray-800);
 }
 
 .automation-tab-btn.active {
@@ -1572,16 +1572,16 @@ body {
 	display: flex;
 	gap: var(--spacing-md);
 	padding: var(--spacing-lg);
-	background: var(--card-background);
-	border-bottom: 1px solid var(--border-color);
+	background: white;
+	border-bottom: 1px solid var(--gray-200);
 }
 
 .search-input, .filter-select {
 	padding: var(--spacing-md) var(--spacing-lg);
-	border: 1px solid var(--border-color);
-	border-radius: var(--border-radius);
-	background: var(--background-color);
-	color: var(--text-primary);
+	border: 1px solid var(--gray-200);
+	border-radius: var(--radius-md);
+	background: var(--gray-50);
+	color: var(--gray-800);
 	font-size: 14px;
 	transition: all 0.2s ease;
 }
@@ -1604,13 +1604,13 @@ body {
 	flex: 1;
 	overflow-y: auto;
 	padding: var(--spacing-lg);
-	background: var(--background-color);
+	background: var(--gray-50);
 }
 
 .automation-item {
-	background: var(--card-background);
-	border: 1px solid var(--border-color);
-	border-radius: var(--border-radius-lg);
+	background: white;
+	border: 1px solid var(--gray-200);
+	border-radius: var(--radius-lg);
 	padding: var(--spacing-xl);
 	margin-bottom: var(--spacing-lg);
 	transition: all 0.3s ease;
@@ -1649,7 +1649,7 @@ body {
 
 .automation-header h4 {
 	margin: 0;
-	color: var(--text-primary);
+	color: var(--gray-800);
 	font-size: 18px;
 	font-weight: 600;
 	line-height: 1.3;
@@ -1678,7 +1678,7 @@ body {
 }
 
 .automation-description {
-	color: var(--text-secondary);
+	color: var(--gray-600);
 	margin: var(--spacing-md) 0 var(--spacing-lg) 0;
 	line-height: 1.6;
 	font-size: 14px;
@@ -1689,7 +1689,7 @@ body {
 	gap: var(--spacing-lg);
 	margin-bottom: var(--spacing-lg);
 	font-size: 13px;
-	color: var(--text-secondary);
+	color: var(--gray-600);
 }
 
 .automation-meta span {
@@ -1715,7 +1715,7 @@ body {
 .automation-actions button {
 	padding: var(--spacing-sm) var(--spacing-lg);
 	border: none;
-	border-radius: var(--border-radius);
+	border-radius: var(--radius-md);
 	font-size: 13px;
 	font-weight: 600;
 	cursor: pointer;
@@ -1761,18 +1761,18 @@ body {
 .empty-state {
 	text-align: center;
 	padding: var(--spacing-xxl);
-	color: var(--text-secondary);
-	background: var(--card-background);
-	border-radius: var(--border-radius-lg);
+	color: var(--gray-600);
+	background: white;
+	border-radius: var(--radius-lg);
 	margin: var(--spacing-lg);
-	border: 2px dashed var(--border-color);
+	border: 2px dashed var(--gray-200);
 }
 
 .empty-state p {
 	margin: 0 0 var(--spacing-sm) 0;
 	font-size: 18px;
 	font-weight: 600;
-	color: var(--text-primary);
+	color: var(--gray-800);
 }
 
 .empty-state small {
@@ -1784,9 +1784,9 @@ body {
 .loading-automations {
 	text-align: center;
 	padding: var(--spacing-xxl);
-	color: var(--text-secondary);
-	background: var(--card-background);
-	border-radius: var(--border-radius-lg);
+	color: var(--gray-600);
+	background: white;
+	border-radius: var(--radius-lg);
 	margin: var(--spacing-lg);
 }
 
@@ -1817,15 +1817,15 @@ body {
 }
 
 .modal-content {
-	background: var(--card-background);
-	border-radius: var(--border-radius-lg);
+	background: white;
+	border-radius: var(--radius-lg);
 	padding: var(--spacing-xxl);
 	max-width: 500px;
 	width: 90%;
 	max-height: 80vh;
 	overflow-y: auto;
 	box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-	border: 1px solid var(--border-color);
+	border: 1px solid var(--gray-200);
 	animation: slideUp 0.3s ease;
 }
 
@@ -1842,7 +1842,7 @@ body {
 
 .modal-content h3 {
 	margin: 0 0 var(--spacing-xl) 0;
-	color: var(--text-primary);
+	color: var(--gray-800);
 	font-size: 24px;
 	font-weight: 700;
 }
@@ -1854,7 +1854,7 @@ body {
 .form-group label {
 	display: block;
 	margin-bottom: var(--spacing-sm);
-	color: var(--text-primary);
+	color: var(--gray-800);
 	font-weight: 600;
 	font-size: 14px;
 }
@@ -1864,10 +1864,10 @@ body {
 .form-group select {
 	width: 100%;
 	padding: var(--spacing-md) var(--spacing-lg);
-	border: 1px solid var(--border-color);
-	border-radius: var(--border-radius);
-	background: var(--background-color);
-	color: var(--text-primary);
+	border: 1px solid var(--gray-200);
+	border-radius: var(--radius-md);
+	background: var(--gray-50);
+	color: var(--gray-800);
 	font-size: 14px;
 	transition: all 0.2s ease;
 	box-sizing: border-box;
@@ -1890,7 +1890,7 @@ body {
 .form-group small {
 	display: block;
 	margin-top: var(--spacing-sm);
-	color: var(--text-secondary);
+	color: var(--gray-600);
 	font-size: 12px;
 	line-height: 1.4;
 }
@@ -1901,13 +1901,13 @@ body {
 	justify-content: flex-end;
 	margin-top: var(--spacing-xl);
 	padding-top: var(--spacing-lg);
-	border-top: 1px solid var(--border-color);
+	border-top: 1px solid var(--gray-200);
 }
 
 .modal-buttons button {
 	padding: var(--spacing-md) var(--spacing-xl);
 	border: none;
-	border-radius: var(--border-radius);
+	border-radius: var(--radius-md);
 	font-weight: 600;
 	font-size: 14px;
 	cursor: pointer;
@@ -1930,14 +1930,14 @@ body {
 }
 
 .modal-buttons .secondary {
-	background: var(--card-background);
-	color: var(--text-secondary);
-	border: 1px solid var(--border-color);
+	background: white;
+	color: var(--gray-600);
+	border: 1px solid var(--gray-200);
 }
 
 .modal-buttons .secondary:hover {
-	background: var(--background-color);
-	color: var(--text-primary);
+	background: var(--gray-50);
+	color: var(--gray-800);
 	border-color: var(--primary-color);
 }
 
@@ -1978,7 +1978,7 @@ body {
 	}
 	
 	.automation-tab-btn {
-		border-bottom: 1px solid var(--border-color);
+		border-bottom: 1px solid var(--gray-200);
 	}
 	
 	.automation-tab-btn.active {

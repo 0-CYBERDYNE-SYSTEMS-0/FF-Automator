@@ -446,6 +446,7 @@ def _get_model_recommendations_html(provider: str, model: str) -> str:
     recommendations = {
         "o3": "🧠 Best for complex reasoning, math, and scientific tasks",
         "o4-mini": "⚡ Fast reasoning model, good balance of speed and intelligence",
+        "gpt-4.1-mini": "⚡ Cost-effective and fast, excellent for most automation tasks",
         "gpt-4.1": "🎯 Excellent all-around model for coding and general tasks",
         "claude-4-opus": "🧠 Top-tier reasoning and analysis capabilities",
         "claude-4-sonnet": "⚡ Fast and intelligent, great for coding",

@@ -57,7 +57,8 @@ class AutomationScheduler:
 	def stop(self) -> None:
 		"""Stop the scheduler"""
 		self.is_running = False
-		schedule.clear()
+		if schedule:
+			schedule.clear()
 		self.scheduled_jobs.clear()
 		
 		if self.scheduler_thread:

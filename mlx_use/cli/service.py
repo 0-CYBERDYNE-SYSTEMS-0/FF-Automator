@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 class InteractiveCLI:
 	def __init__(self, session_dir: Optional[str] = None):
-		self.session_dir = Path(session_dir or os.path.expanduser("~/.macOS-use-sessions"))
+		self.session_dir = Path(session_dir or os.path.expanduser("~/.FF-Terminal-sessions"))
 		self.session_dir.mkdir(exist_ok=True)
 		
 		self.controller = Controller()
@@ -66,7 +66,7 @@ class InteractiveCLI:
 		
 		# Try providers in priority order with their best models
 		provider_priority = [
-			("OpenAI", "gpt-4.1", os.getenv('OPENAI_API_KEY')),
+			("OpenAI", "gpt-4.1-mini", os.getenv('OPENAI_API_KEY')),
 			("Anthropic", "claude-4-sonnet", os.getenv('ANTHROPIC_API_KEY')),
 			("Google", "gemini-2.5-flash", os.getenv('GEMINI_API_KEY')),
 			("DeepSeek", "deepseek-chat", os.getenv('DEEPSEEK_API_KEY')),
@@ -183,7 +183,7 @@ class InteractiveCLI:
 	def _print_banner(self):
 		"""Print CLI banner"""
 		print("\n" + "="*60)
-		print("🤖 macOS-use Interactive CLI")
+		print("🤖 FF-Terminal:Desktop_ver Interactive CLI")
 		print("Natural Language Control for macOS Applications")
 		print("="*60)
 		print("Type 'help' for commands, 'quit' to exit")
@@ -515,7 +515,7 @@ def main():
 	"""Entry point for the CLI"""
 	import argparse
 	
-	parser = argparse.ArgumentParser(description="macOS-use Interactive CLI")
+	parser = argparse.ArgumentParser(description="FF-Terminal:Desktop_ver Interactive CLI")
 	parser.add_argument(
 		"--session-dir", 
 		type=str, 

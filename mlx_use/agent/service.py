@@ -435,6 +435,10 @@ class Agent:
 				logger.info('❌ Failed to complete task in maximum steps')
 
 			return self.history
+		except asyncio.CancelledError:
+			logger.info('⏹️ Agent execution cancelled by user')
+			self._stopped = True
+			raise
 		finally:
 			self.telemetry.capture(
 				AgentEndTelemetryEvent(

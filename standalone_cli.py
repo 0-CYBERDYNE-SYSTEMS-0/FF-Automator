@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Standalone Enhanced CLI for macOS-use
+Standalone Enhanced CLI for FF-Terminal:Desktop_ver
 This version works without requiring the full package installation
 """
 
@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Any
 # Simple session manager for standalone CLI
 class SimpleSessionManager:
 	def __init__(self, session_dir: str = None):
-		self.session_dir = Path(session_dir or os.path.expanduser("~/.macOS-use-sessions"))
+		self.session_dir = Path(session_dir or os.path.expanduser("~/.FF-Terminal-sessions"))
 		self.session_dir.mkdir(exist_ok=True)
 		self.current_session = {
 			"id": str(uuid.uuid4()),
@@ -104,8 +104,8 @@ class StandaloneCLI:
 	def _print_banner(self):
 		"""Print CLI banner"""
 		print("\n" + "="*60)
-		print("🤖 macOS-use Enhanced CLI (Standalone)")
-		print("Natural Language Control for macOS Applications")
+		print("🤖 FF-Terminal:Desktop_ver Enhanced CLI (Standalone)")
+		print("Natural Language Control for Desktop Applications")
 		print("="*60)
 		print("Note: This is a demo version. For full functionality,")
 		print("install the complete package and use: python mlx_use_cli.py")

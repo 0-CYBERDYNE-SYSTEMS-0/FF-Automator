@@ -15,6 +15,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from starlette.websockets import WebSocketState
+from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -56,8 +58,8 @@ class ChatSystemPromptWithCustom(SystemPrompt):
      {
      "current_state": {
        "evaluation_previous_goal": "Success|Failed|Unknown - Analyze if the user's request was completed",
-       "memory": "What you've done and learned from this interaction", 
-       "next_goal": "How to help the user next"
+       "memory": "What you've done and learned from this interaction. TRACK REPETITIVE PATTERNS: Note if you're repeating actions or responses.", 
+       "next_goal": "How to help the user next, or 'COMPLETE' if task is finished (then use 'done' action)"
      },
      "action": [
        {
@@ -86,8 +88,10 @@ class ChatSystemPromptWithCustom(SystemPrompt):
    - For simple questions/chat: Use "reply" action with your response
    - For automation requests: Use appropriate macOS actions AND provide "reply" updates
    - For multi-step tasks: Chain actions with progress "reply" messages
-   - For task completion: Use "done" action with comprehensive results
+   - **For task completion: Use "done" action with comprehensive results - NOT reply actions**
+   - **CRITICAL**: The ONLY way to end execution is with "done" - saying "task finished" with reply is NOT enough
    - Always prioritize task completion over stopping early
+   - **NEVER continue execution after stating the task is complete - immediately use "done"**
 
 5. TASK QUEUE AWARENESS:
    - You can handle multiple tasks and follow-up requests
@@ -106,10 +110,24 @@ class ChatSystemPromptWithCustom(SystemPrompt):
    - Reference previous actions in current responses
    - Build on previous work rather than starting fresh
    - Maintain conversation flow while executing tasks
+
+8. REPETITIVE LOOP DETECTION:
+   - **CRITICAL**: Check your conversation history before each action to avoid repetitive loops
+   - If you've performed the same action or said the same thing 2+ times with no progress, STOP and use "done"
+   - Common loop patterns to detect:
+     * Repeatedly saying "task finished" or "task complete" without using "done" action
+     * Clicking the same element multiple times with identical results
+     * Repeating the same error message or failed action
+     * Making identical progress updates with no actual advancement
+     * Continuously using "reply" actions with the same message
+   - **Self-awareness check**: Ask yourself "Have I done this exact same thing before in this conversation?"
+   - If stuck in a loop: Use "done" action immediately with explanation: "Detected repetitive behavior, ending execution"
+   - **Prevention**: Always vary your approach if the first attempt doesn't work - try alternatives, not repetition
+   - Monitor your "memory" field for repetitive patterns and break the cycle with decisive action
 """
 		# Add custom message if provided
 		if self.custom_message:
-			text += f"\n\n8. CUSTOM INSTRUCTIONS:\n   {self.custom_message}\n"
+			text += f"\n\n9. CUSTOM INSTRUCTIONS:\n   {self.custom_message}\n"
 		
 		return text
 
@@ -119,6 +137,18 @@ class ChatSystemPromptWithCustom(SystemPrompt):
 		"""Enhanced chat prompt with multi-step awareness and conversation context"""
 		
 		prompt = f"""You are an AI assistant for macOS automation with AUTONOMOUS MULTI-STEP capabilities. You execute complex tasks until completion while maintaining conversational interaction.
+
+CRITICAL LOOP PREVENTION:
+- Before each response, review your conversation history to detect repetitive patterns
+- If you've said "task finished", "task complete", or similar 2+ times, immediately use "done" action
+- If you're repeating the same action with identical results, stop and use "done" with explanation
+- The ONLY way to end execution is the "done" action - not repeated statements or "reply" actions
+- Monitor your memory field for repetitive patterns and break cycles immediately
+
+BROWSER WINDOW PROTECTION:
+- **CRITICAL**: NEVER navigate URLs in current browser tabs - always open NEW WINDOWS/TABS
+- Use AppleScript to create new browser windows: "tell application \"Safari\" to make new document"
+- Never refresh or navigate away from localhost interfaces - protect the current UI session
 
 AVAILABLE ACTIONS:
 {action_descriptions}
@@ -173,8 +203,8 @@ class ChatSystemPrompt(ChatSystemPromptWithCustom):
      {
      "current_state": {
        "evaluation_previous_goal": "Success|Failed|Unknown - Analyze if the user's request was completed",
-       "memory": "What you've done and learned from this interaction", 
-       "next_goal": "How to help the user next"
+       "memory": "What you've done and learned from this interaction. TRACK REPETITIVE PATTERNS: Note if you're repeating actions or responses.", 
+       "next_goal": "How to help the user next, or 'COMPLETE' if task is finished (then use 'done' action)"
      },
      "action": [
        {
@@ -264,8 +294,8 @@ class SystemPromptWithCustom(SystemPrompt):
      {
      "current_state": {
        "evaluation_previous_goal": "Success|Failed|Unknown - Use UI context elements to verify outcomes (e.g., results in context). Use action results to confirm execution when UI changes are delayed or unclear.",
-       "memory": "What you've done and need to remember",
-       "next_goal": "Next step to achieve"
+       "memory": "What you've done and need to remember. TRACK REPETITIVE PATTERNS: Note if you're repeating actions or responses. Include action count for similar attempts.",
+       "next_goal": "Next step to achieve, or 'COMPLETE' if task is finished (then use 'done' action)"
      },
      "action": [
        {
@@ -470,6 +500,8 @@ class ChatAgent(Agent):
 		self.task_queue = kwargs.pop('task_queue', ChatTaskQueue())
 		self.streaming_callback = kwargs.pop('streaming_callback', None)
 		self.needs_input_callback = kwargs.pop('needs_input_callback', None)
+		self.client_id = kwargs.pop('client_id', None)
+		self.connection_manager = kwargs.pop('connection_manager', None)
 		self.interrupt_flag = False
 		self.redirect_message = None
 		
@@ -480,6 +512,11 @@ class ChatAgent(Agent):
 		results = []
 		
 		try:
+			# Check if stopped before starting
+			if self._stopped:
+				logger.info("Agent stopped before execution")
+				return {"results": [], "success": False, "message": "Agent stopped"}
+			
 			# Process current task or get next from queue
 			if not self.task_queue.current_task:
 				next_task = self.task_queue.get_next_task()
@@ -550,8 +587,8 @@ class ChatAgent(Agent):
 					"actions_taken": []
 				})
 			
-			# Check for more tasks in queue
-			if self.task_queue.has_tasks():
+			# Check for more tasks in queue only if still connected and not stopped
+			if self.task_queue.has_tasks() and self._is_still_connected() and not self._stopped:
 				next_task = self.task_queue.get_next_task()
 				if next_task and self.streaming_callback:
 					await self.streaming_callback({
@@ -563,10 +600,13 @@ class ChatAgent(Agent):
 						}
 					})
 					
-					# Continue with next task
-					self.task = next_task["task"]
-					next_results = await self.run_conversational(max_steps)
-					results.extend(next_results["results"])
+					# Continue with next task only if still connected and not stopped
+					if self._is_still_connected() and not self._stopped:
+						self.task = next_task["task"]
+						next_results = await self.run_conversational(max_steps)
+						results.extend(next_results["results"])
+					else:
+						logger.info(f"Client {self.client_id} disconnected, stopping task queue processing")
 		
 		except Exception as e:
 			logger.error(f"Error in conversational run: {e}")
@@ -592,6 +632,16 @@ class ChatAgent(Agent):
 		
 		# Multi-step execution loop with streaming
 		for step in range(max_steps):
+			# Check if client is still connected
+			if not self._is_still_connected():
+				logger.info(f"Client {self.client_id} disconnected, stopping execution")
+				break
+			
+			# Check if agent was stopped
+			if self._stopped:
+				logger.info(f"Agent stopped by user, ending execution")
+				break
+			
 			# Check for interruption or redirection
 			if self.interrupt_flag:
 				if self.redirect_message:
@@ -640,6 +690,12 @@ class ChatAgent(Agent):
 			if self.history.is_done():
 				logger.info('✅ Task completed successfully')
 				break
+			
+			# Additional safety check: If last action was "done", force break
+			if (self._last_result and len(self._last_result) > 0 and 
+				self._last_result[-1].is_done):
+				logger.info('✅ Done action detected - forcing task completion')
+				break
 		else:
 			logger.info('❌ Failed to complete task in maximum steps')
 		
@@ -678,13 +734,19 @@ class ChatAgent(Agent):
 				summaries.append(result.extracted_content[:50] + "...")
 		
 		return ", ".join(summaries) if summaries else "Actions completed"
+	
+	def _is_still_connected(self) -> bool:
+		"""Check if the client is still connected"""
+		if not self.client_id or not self.connection_manager:
+			return True  # Default to True if no connection info
+		return self.connection_manager.is_connection_active(self.client_id)
 
 # Import the exact same models from the Gradio app
 LLM_MODELS = {
     "OpenAI": [
         # Latest 2025 models
-        "gpt-4.1",
         "gpt-4.1-mini",
+        "gpt-4.1",
         "gpt-4.1-nano",
         "o3",
         "o4-mini", 
@@ -1169,21 +1231,55 @@ class ConnectionManager:
 		self.active_connections[client_id] = websocket
 
 	def disconnect(self, client_id: str):
-		if client_id in self.active_connections:
-			del self.active_connections[client_id]
+		# Stop running agents first to prevent them from trying to send messages
 		if client_id in self.agent_sessions:
+			self.agent_sessions[client_id]._stopped = True
 			del self.agent_sessions[client_id]
 		if client_id in self.chat_agents:
+			self.chat_agents[client_id]._stopped = True
 			del self.chat_agents[client_id]
+		
+		# Then clean up connections
+		if client_id in self.active_connections:
+			del self.active_connections[client_id]
+		
 		# Clean up conversation memory and task queues
 		if hasattr(self, 'conversation_memories') and client_id in self.conversation_memories:
 			del self.conversation_memories[client_id]
 		if hasattr(self, 'task_queues') and client_id in self.task_queues:
 			del self.task_queues[client_id]
 
+	def is_connection_active(self, client_id: str) -> bool:
+		"""Check if a WebSocket connection is still active"""
+		if client_id not in self.active_connections:
+			return False
+		try:
+			ws = self.active_connections[client_id]
+			# Check if WebSocket is in CONNECTED state and application state is valid
+			return (hasattr(ws, 'client_state') and 
+					ws.client_state == WebSocketState.CONNECTED and
+					hasattr(ws, 'application_state') and 
+					ws.application_state == WebSocketState.CONNECTED)
+		except Exception:
+			# If any error occurs checking connection state, assume it's disconnected
+			return False
+
 	async def send_message(self, message: dict, client_id: str):
 		if client_id in self.active_connections:
-			await self.active_connections[client_id].send_text(json.dumps(message))
+			# Double-check connection is still active before sending
+			if not self.is_connection_active(client_id):
+				logger.info(f"Connection {client_id} is no longer active, cleaning up")
+				self.disconnect(client_id)
+				return
+				
+			try:
+				await self.active_connections[client_id].send_text(json.dumps(message))
+			except (WebSocketDisconnect, RuntimeError, ConnectionError, ConnectionClosedError, ConnectionClosedOK) as e:
+				logger.warning(f"Failed to send message to {client_id}: {e}")
+				self.disconnect(client_id)
+			except Exception as e:
+				logger.error(f"Unexpected error sending message to {client_id}: {e}")
+				self.disconnect(client_id)
 
 	async def send_stream_update(self, data: dict, client_id: str):
 		"""Send streaming update to client"""
@@ -1608,6 +1704,41 @@ async def create_automation_from_template(template_name: str, parameters: Dict[s
 		logger.error(f"Error creating automation from template: {e}")
 		raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/refine-prompt")
+async def refine_prompt(request: dict):
+	"""Refine a prompt using direct LLM call without agent system"""
+	try:
+		# Extract request data
+		message = request.get("message", "")
+		system_message = request.get("system_message", "")
+		llm_provider = request.get("llm_provider", "OpenAI")
+		llm_model = request.get("llm_model", "gpt-4")
+		api_key = request.get("api_key")
+		
+		# Save API key if provided
+		if api_key:
+			web_app.save_api_key_to_env(llm_provider, api_key)
+		
+		# Get refined response directly from LLM
+		response = await web_app.get_llm_response(
+			system_message=system_message,
+			user_message=message,
+			llm_provider=llm_provider,
+			llm_model=llm_model
+		)
+		
+		return JSONResponse(content={
+			"response": response,
+			"success": True
+		})
+	except Exception as e:
+		logger.error(f"Error in prompt refinement: {e}")
+		return JSONResponse(content={
+			"response": message,  # Return original on error
+			"success": False,
+			"error": str(e)
+		})
+
 @app.post("/api/chat/send")
 async def send_chat_message(request: ChatMessage):
 	"""Send a chat message using the full agent system"""
@@ -1666,6 +1797,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 	await manager.connect(websocket, client_id)
 	try:
 		while True:
+			# Check if connection is still active before trying to receive
+			if not manager.is_connection_active(client_id):
+				break
+				
 			data = await websocket.receive_text()
 			message = json.loads(data)
 			
@@ -1690,7 +1825,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 			elif message["type"] == "ping":
 				await manager.send_message({"type": "pong"}, client_id)
 				
-	except WebSocketDisconnect:
+	except (WebSocketDisconnect, RuntimeError, ConnectionError, ConnectionClosedError, ConnectionClosedOK) as e:
+		logger.info(f"WebSocket disconnected for client {client_id}: {e}")
+		manager.disconnect(client_id)
+	except Exception as e:
+		logger.error(f"Unexpected error in WebSocket endpoint for client {client_id}: {e}")
 		manager.disconnect(client_id)
 
 async def handle_agent_task(task_data: dict, client_id: str):
@@ -1741,24 +1880,26 @@ async def handle_agent_task(task_data: dict, client_id: str):
 		# Store agent for potential stopping
 		manager.agent_sessions[client_id] = agent
 		
-		# Define step callback for streaming updates
+		# Define step callback for streaming updates with connection check
 		def step_callback(state: str, output, step: int):
-			asyncio.create_task(manager.send_stream_update({
-				"status": "running",
-				"step": step,
-				"max_steps": max_steps,
-				"state": state,
-				"agent_output": output.model_dump() if output else None,
-				"message": f"Step {step}: {output.current_state.next_goal if output else 'Processing...'}"
-			}, client_id))
+			if manager.is_connection_active(client_id):
+				asyncio.create_task(manager.send_stream_update({
+					"status": "running",
+					"step": step,
+					"max_steps": max_steps,
+					"state": state,
+					"agent_output": output.model_dump() if output else None,
+					"message": f"Step {step}: {output.current_state.next_goal if output else 'Processing...'}"
+				}, client_id))
 		
 		def done_callback(history):
-			asyncio.create_task(manager.send_stream_update({
-				"status": "completed",
-				"message": "Task completed successfully!",
-				"final_result": history.history[-1].result[-1].extracted_content if history.history and history.history[-1].result else "Task completed",
-				"step_count": len(history.history)
-			}, client_id))
+			if manager.is_connection_active(client_id):
+				asyncio.create_task(manager.send_stream_update({
+					"status": "completed",
+					"message": "Task completed successfully!",
+					"final_result": history.history[-1].result[-1].extracted_content if history.history and history.history[-1].result else "Task completed",
+					"step_count": len(history.history)
+				}, client_id))
 		
 		# Set callbacks
 		agent.register_new_step_callback = step_callback
@@ -1833,9 +1974,12 @@ async def handle_chat_message(message_data: dict, client_id: str):
 			system_prompt_class = ChatSystemPromptWithCustom
 			system_prompt_kwargs = {}
 		
-		# Create streaming callback
+		# Create streaming callback with connection check
 		async def streaming_callback(data):
-			await manager.send_message(data, client_id)
+			if manager.is_connection_active(client_id):
+				await manager.send_message(data, client_id)
+			else:
+				logger.warning(f"Skipping message to disconnected client {client_id}")
 		
 		# Create enhanced chat agent with conversation capabilities
 		agent = ChatAgent(
@@ -1847,7 +1991,9 @@ async def handle_chat_message(message_data: dict, client_id: str):
 			system_prompt_kwargs=system_prompt_kwargs,
 			conversation_memory=conversation_memory,
 			task_queue=task_queue,
-			streaming_callback=streaming_callback
+			streaming_callback=streaming_callback,
+			client_id=client_id,
+			connection_manager=manager
 		)
 		
 		# Store agent and memory for potential stopping and persistence
@@ -1912,22 +2058,28 @@ async def handle_stop_agent(client_id: str):
 	if client_id in manager.agent_sessions:
 		agent = manager.agent_sessions[client_id]
 		agent._stopped = True
+		logger.info(f"Stopping agent for client {client_id}")
 		await manager.send_stream_update({
 			"status": "stopped",
-			"message": "Agent execution stopped by user"
+			"message": "Agent execution stopped by user",
+			"final_result": "Execution stopped by user"
 		}, client_id)
+		# Clean up the session
+		del manager.agent_sessions[client_id]
 
 async def handle_stop_chat(client_id: str):
 	"""Stop running chat agent for client"""
 	if client_id in manager.chat_agents:
 		agent = manager.chat_agents[client_id]
 		agent._stopped = True
+		logger.info(f"Stopping chat agent for client {client_id}")
 		await manager.send_message({
 			"type": "chat_response",
 			"data": {
 				"status": "stopped",
 				"message": "Chat stopped by user",
-				"success": False
+				"success": False,
+				"final_result": "Chat execution stopped by user"
 			}
 		}, client_id)
 

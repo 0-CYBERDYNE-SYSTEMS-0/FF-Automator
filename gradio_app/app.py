@@ -17,8 +17,8 @@ from gradio_app.src.ui.chat_interface import create_chat_tab
 
 def create_interface(app_instance: MacOSUseGradioApp):
     """Create the Gradio interface with all components."""
-    with gr.Blocks(title="macOS-use Interface") as demo:
-        gr.Markdown("# Make Mac apps accessible for AI agents (Beta)")
+    with gr.Blocks(title="FF-Terminal:Desktop_ver Interface") as demo:
+        gr.Markdown("# FF-Terminal:Desktop_ver - AI Desktop Control (Beta)")
         
         with gr.Tab("Chat"):
             chat_components = create_chat_tab(app_instance)
@@ -213,7 +213,7 @@ def create_interface(app_instance: MacOSUseGradioApp):
                 return prompt
                 
             # Create a system message that explains what the LLM should do
-            system_message = f"""You are a helpful assistant that refines user prompts for a macOS-use agent.
+            system_message = f"""You are a helpful assistant that refines user prompts for a FF-Terminal:Desktop_ver agent.
 The user has provided a prompt: "{prompt}"
 
 Your task is to refine this prompt to make it more specific, clearer, and more likely to succeed when executed on macOS.
