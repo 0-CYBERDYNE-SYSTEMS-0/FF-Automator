@@ -16,6 +16,8 @@ class MacOSAutomationApp {
 		this.currentAutomationCategory = 'Quick Tasks';
 		this.isAgentRunning = false;
 		this.isChatRunning = false;
+		this.savedAutomations = [];
+		this.scheduledAutomations = [];
 		
 		this.init();
 	}
@@ -29,6 +31,8 @@ class MacOSAutomationApp {
 			await this.loadProviders();
 			await this.loadSessions();
 			await this.loadAutomationTemplates();
+			await this.loadSavedAutomations();
+			await this.setupAutomationEventListeners();
 			await this.hideLoadingScreen();
 		} catch (error) {
 			console.error('Failed to initialize app:', error);
@@ -250,6 +254,15 @@ class MacOSAutomationApp {
 				break;
 			case 'chat_error':
 				this.handleChatError(message.data);
+				break;
+			case 'automation_save_result':
+				this.handleAutomationSaveResult(message.data);
+				break;
+			case 'automation_execute_result':
+				this.handleAutomationExecuteResult(message.data);
+				break;
+			case 'automation_status':
+				this.handleAutomationStatus(message.data);
 				break;
 			default:
 				console.log('Unknown message type:', message);
@@ -1260,6 +1273,525 @@ class MacOSAutomationApp {
 
 	capitalizeFirst(str) {
 		return str.charAt(0).toUpperCase() + str.slice(1);
+	}
+
+	// Automation Management Methods
+	async loadSavedAutomations() {
+		try {
+			const response = await fetch(`${this.apiBase}/api/automations`);
+			this.savedAutomations = await response.json();
+			this.renderSavedAutomations();
+		} catch (error) {
+			console.error('Failed to load saved automations:', error);
+		}
+	}
+
+	async saveCurrentChatAsAutomation() {
+		if (this.conversationHistory.length === 0) {
+			this.showToast('No conversation to save as automation', 'warning');
+			return;
+		}
+
+		const modal = document.createElement('div');
+		modal.className = 'modal-overlay';
+		modal.innerHTML = `
+			<div class="modal-content">
+				<h3>Save as Automation</h3>
+				<form id="save-automation-form">
+					<div class="form-group">
+						<label for="automation-name">Automation Name</label>
+						<input type="text" id="automation-name" required placeholder="Enter automation name">
+					</div>
+					<div class="form-group">
+						<label for="automation-description">Description (optional)</label>
+						<textarea id="automation-description" placeholder="Describe what this automation does"></textarea>
+					</div>
+					<div class="form-group">
+						<label for="automation-category">Category</label>
+						<input type="text" id="automation-category" placeholder="e.g. Productivity, Communication">
+					</div>
+					<div class="form-group">
+						<label for="automation-tags">Tags (comma-separated)</label>
+						<input type="text" id="automation-tags" placeholder="e.g. email, calendar, quick">
+					</div>
+					<div class="modal-buttons">
+						<button type="button" class="secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+						<button type="submit" class="primary">Save Automation</button>
+					</div>
+				</form>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+
+		const form = document.getElementById('save-automation-form');
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			
+			const name = document.getElementById('automation-name').value;
+			const description = document.getElementById('automation-description').value;
+			const category = document.getElementById('automation-category').value;
+			const tags = document.getElementById('automation-tags').value.split(',').map(t => t.trim()).filter(t => t);
+			
+			if (!name) {
+				this.showToast('Automation name is required', 'error');
+				return;
+			}
+
+			// Send save automation message via WebSocket
+			if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+				this.socket.send(JSON.stringify({
+					type: 'save_automation',
+					data: {
+						name,
+						description,
+						task: this.conversationHistory[0]?.content || name,
+						category,
+						tags,
+						custom_system_message: this.getCustomSystemMessage(),
+						llm_provider: this.getCurrentProvider(),
+						llm_model: this.getCurrentModel()
+					}
+				}));
+			}
+
+			modal.remove();
+		});
+	}
+
+	async executeAutomation(automationId, parameters = {}) {
+		if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+			this.socket.send(JSON.stringify({
+				type: 'execute_automation',
+				data: {
+					automation_id: automationId,
+					runtime_parameters: parameters
+				}
+			}));
+		}
+	}
+
+	async deleteAutomation(automationId) {
+		if (!confirm('Are you sure you want to delete this automation?')) {
+			return;
+		}
+
+		try {
+			const response = await fetch(`${this.apiBase}/api/automations/${automationId}`, {
+				method: 'DELETE'
+			});
+
+			const data = await response.json();
+
+			if (data.success) {
+				this.showToast('Automation deleted successfully', 'success');
+				this.loadSavedAutomations();
+			} else {
+				this.showToast('Failed to delete automation', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to delete automation:', error);
+			this.showToast('Failed to delete automation', 'error');
+		}
+	}
+
+	async scheduleAutomation(automationId) {
+		const modal = document.createElement('div');
+		modal.className = 'modal-overlay';
+		modal.innerHTML = `
+			<div class="modal-content">
+				<h3>Schedule Automation</h3>
+				<form id="schedule-automation-form">
+					<div class="form-group">
+						<label for="schedule-type">Schedule Type</label>
+						<select id="schedule-type" required>
+							<option value="">Select schedule type</option>
+							<option value="daily">Daily</option>
+							<option value="weekly">Weekly</option>
+							<option value="hourly">Hourly</option>
+							<option value="custom">Custom (Cron)</option>
+						</select>
+					</div>
+					<div class="form-group" id="time-group" style="display: none;">
+						<label for="schedule-time">Time</label>
+						<input type="time" id="schedule-time">
+					</div>
+					<div class="form-group" id="weekday-group" style="display: none;">
+						<label for="schedule-weekday">Day of Week</label>
+						<select id="schedule-weekday">
+							<option value="1">Monday</option>
+							<option value="2">Tuesday</option>
+							<option value="3">Wednesday</option>
+							<option value="4">Thursday</option>
+							<option value="5">Friday</option>
+							<option value="6">Saturday</option>
+							<option value="0">Sunday</option>
+						</select>
+					</div>
+					<div class="form-group" id="cron-group" style="display: none;">
+						<label for="schedule-cron">Cron Expression</label>
+						<input type="text" id="schedule-cron" placeholder="0 9 * * 1-5 (9 AM weekdays)">
+						<small>Format: minute hour day month weekday</small>
+					</div>
+					<div class="modal-buttons">
+						<button type="button" class="secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+						<button type="submit" class="primary">Schedule</button>
+					</div>
+				</form>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+
+		// Handle schedule type changes
+		const scheduleType = document.getElementById('schedule-type');
+		const timeGroup = document.getElementById('time-group');
+		const weekdayGroup = document.getElementById('weekday-group');
+		const cronGroup = document.getElementById('cron-group');
+
+		scheduleType.addEventListener('change', () => {
+			timeGroup.style.display = 'none';
+			weekdayGroup.style.display = 'none';
+			cronGroup.style.display = 'none';
+
+			switch (scheduleType.value) {
+				case 'daily':
+				case 'weekly':
+					timeGroup.style.display = 'block';
+					if (scheduleType.value === 'weekly') {
+						weekdayGroup.style.display = 'block';
+					}
+					break;
+				case 'custom':
+					cronGroup.style.display = 'block';
+					break;
+			}
+		});
+
+		const form = document.getElementById('schedule-automation-form');
+		form.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			
+			let cronExpression = '';
+			const type = scheduleType.value;
+			const time = document.getElementById('schedule-time').value;
+			const weekday = document.getElementById('schedule-weekday').value;
+			const customCron = document.getElementById('schedule-cron').value;
+
+			switch (type) {
+				case 'daily':
+					if (!time) {
+						this.showToast('Time is required for daily schedule', 'error');
+						return;
+					}
+					const [hour, minute] = time.split(':');
+					cronExpression = `${minute} ${hour} * * *`;
+					break;
+				case 'weekly':
+					if (!time) {
+						this.showToast('Time is required for weekly schedule', 'error');
+						return;
+					}
+					const [wHour, wMinute] = time.split(':');
+					cronExpression = `${wMinute} ${wHour} * * ${weekday}`;
+					break;
+				case 'hourly':
+					cronExpression = '0 * * * *';
+					break;
+				case 'custom':
+					if (!customCron) {
+						this.showToast('Cron expression is required', 'error');
+						return;
+					}
+					cronExpression = customCron;
+					break;
+				default:
+					this.showToast('Please select a schedule type', 'error');
+					return;
+			}
+
+			try {
+				const response = await fetch(`${this.apiBase}/api/automations/${automationId}/schedule`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						automation_id: automationId,
+						cron_expression: cronExpression
+					})
+				});
+
+				const data = await response.json();
+
+				if (data.success) {
+					this.showToast('Automation scheduled successfully', 'success');
+					modal.remove();
+				} else {
+					this.showToast('Failed to schedule automation', 'error');
+				}
+			} catch (error) {
+				console.error('Failed to schedule automation:', error);
+				this.showToast('Failed to schedule automation', 'error');
+			}
+		});
+	}
+
+	renderSavedAutomations() {
+		const container = document.getElementById('saved-automations-list');
+		if (!container) return;
+
+		if (this.savedAutomations.length === 0) {
+			container.innerHTML = `
+				<div class="empty-state">
+					<p>No saved automations yet</p>
+					<small>Successful chat interactions can be saved as reusable automations</small>
+				</div>
+			`;
+			return;
+		}
+
+		container.innerHTML = this.savedAutomations.map(automation => `
+			<div class="automation-item">
+				<div class="automation-header">
+					<h4>${automation.name}</h4>
+					<div class="automation-stats">
+						<span class="success-count">${automation.success_count} successes</span>
+						<span class="failure-count">${automation.failure_count} failures</span>
+					</div>
+				</div>
+				<p class="automation-description">${automation.description || 'No description'}</p>
+				<div class="automation-meta">
+					<span class="category">${automation.category || 'Uncategorized'}</span>
+					<span class="steps">${automation.steps_count} steps</span>
+					<span class="updated">${new Date(automation.updated_at).toLocaleDateString()}</span>
+				</div>
+				<div class="automation-actions">
+					<button class="run-button" onclick="app.executeAutomation('${automation.id}')">Run</button>
+					<button class="schedule-button" onclick="app.scheduleAutomation('${automation.id}')">Schedule</button>
+					<button class="delete-button" onclick="app.deleteAutomation('${automation.id}')">Delete</button>
+				</div>
+			</div>
+		`).join('');
+	}
+
+	getCurrentProvider() {
+		const providerSelect = document.getElementById('llm-provider');
+		return providerSelect ? providerSelect.value : 'OpenAI';
+	}
+
+	getCurrentModel() {
+		const modelSelect = document.getElementById('llm-model');
+		return modelSelect ? modelSelect.value : 'gpt-4';
+	}
+
+	getCustomSystemMessage() {
+		const textarea = document.getElementById('custom-system-message');
+		return textarea ? textarea.value : '';
+	}
+
+	setupAutomationEventListeners() {
+		// Automation tab switching
+		const automationTabBtns = document.querySelectorAll('.automation-tab-btn');
+		automationTabBtns.forEach(btn => {
+			btn.addEventListener('click', (e) => {
+				// Remove active class from all tabs and sections
+				automationTabBtns.forEach(b => b.classList.remove('active'));
+				document.querySelectorAll('.automation-section').forEach(s => s.classList.remove('active'));
+				
+				// Add active class to clicked tab
+				btn.classList.add('active');
+				
+				// Show corresponding section
+				const section = btn.getAttribute('data-section');
+				const sectionElement = document.getElementById(`${section}-automations-section`);
+				if (sectionElement) {
+					sectionElement.classList.add('active');
+				}
+				
+				// Load data for the section
+				if (section === 'scheduled') {
+					this.loadScheduledAutomations();
+				} else if (section === 'history') {
+					this.loadExecutionHistory();
+				}
+			});
+		});
+
+		// Search and filter functionality
+		const searchInput = document.getElementById('automation-search');
+		const categoryFilter = document.getElementById('automation-category-filter');
+		
+		if (searchInput) {
+			searchInput.addEventListener('input', () => {
+				this.filterAutomations();
+			});
+		}
+		
+		if (categoryFilter) {
+			categoryFilter.addEventListener('change', () => {
+				this.filterAutomations();
+			});
+		}
+	}
+
+	async loadScheduledAutomations() {
+		try {
+			const response = await fetch(`${this.apiBase}/api/scheduled-automations`);
+			this.scheduledAutomations = await response.json();
+			this.renderScheduledAutomations();
+		} catch (error) {
+			console.error('Failed to load scheduled automations:', error);
+		}
+	}
+
+	async loadExecutionHistory() {
+		// For now, just show empty state
+		const container = document.getElementById('execution-history-list');
+		if (container) {
+			container.innerHTML = `
+				<div class="empty-state">
+					<p>No execution history</p>
+					<small>History of automation executions will appear here</small>
+				</div>
+			`;
+		}
+	}
+
+	renderScheduledAutomations() {
+		const container = document.getElementById('scheduled-automations-list');
+		if (!container) return;
+
+		if (this.scheduledAutomations.length === 0) {
+			container.innerHTML = `
+				<div class="empty-state">
+					<p>No scheduled automations</p>
+					<small>Schedule automations to run automatically at specified times</small>
+				</div>
+			`;
+			return;
+		}
+
+		container.innerHTML = this.scheduledAutomations.map(automation => `
+			<div class="automation-item">
+				<div class="automation-header">
+					<h4>${automation.name}</h4>
+					<div class="automation-stats">
+						<span class="next-run">Next: ${automation.next_run ? new Date(automation.next_run).toLocaleString() : 'Not scheduled'}</span>
+					</div>
+				</div>
+				<p class="automation-description">${automation.description || 'No description'}</p>
+				<div class="automation-meta">
+					<span class="schedules">${automation.schedules} schedule(s)</span>
+					<span class="success-count">${automation.success_count} successes</span>
+					<span class="failure-count">${automation.failure_count} failures</span>
+				</div>
+				<div class="automation-actions">
+					<button class="run-button" onclick="app.executeAutomation('${automation.automation_id}')">Run Now</button>
+					<button class="delete-button" onclick="app.unscheduleAutomation('${automation.automation_id}')">Unschedule</button>
+				</div>
+			</div>
+		`).join('');
+	}
+
+	async unscheduleAutomation(automationId) {
+		if (!confirm('Are you sure you want to unschedule this automation?')) {
+			return;
+		}
+
+		try {
+			// For now, just remove the first schedule (index 0)
+			const response = await fetch(`${this.apiBase}/api/automations/${automationId}/schedule/0`, {
+				method: 'DELETE'
+			});
+
+			const data = await response.json();
+
+			if (data.success) {
+				this.showToast('Automation unscheduled successfully', 'success');
+				this.loadScheduledAutomations();
+			} else {
+				this.showToast('Failed to unschedule automation', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to unschedule automation:', error);
+			this.showToast('Failed to unschedule automation', 'error');
+		}
+	}
+
+	filterAutomations() {
+		const searchTerm = document.getElementById('automation-search')?.value.toLowerCase() || '';
+		const selectedCategory = document.getElementById('automation-category-filter')?.value || '';
+		
+		const automationItems = document.querySelectorAll('.automation-item');
+		
+		automationItems.forEach(item => {
+			const title = item.querySelector('h4')?.textContent.toLowerCase() || '';
+			const description = item.querySelector('.automation-description')?.textContent.toLowerCase() || '';
+			const category = item.querySelector('.category')?.textContent || '';
+			
+			const matchesSearch = title.includes(searchTerm) || description.includes(searchTerm);
+			const matchesCategory = !selectedCategory || category === selectedCategory;
+			
+			if (matchesSearch && matchesCategory) {
+				item.style.display = 'block';
+			} else {
+				item.style.display = 'none';
+			}
+		});
+	}
+
+	// Automation WebSocket Message Handlers
+	handleAutomationSaveResult(data) {
+		if (data.success) {
+			this.showToast(data.message, 'success');
+			// Refresh the automations list
+			this.loadSavedAutomations();
+		} else {
+			this.showToast(data.message, 'error');
+		}
+	}
+
+	handleAutomationExecuteResult(data) {
+		if (data.success) {
+			this.showToast(`Automation completed successfully in ${data.duration}s`, 'success');
+		} else {
+			this.showToast(data.message, 'error');
+		}
+		
+		// Update any running automation indicators
+		this.isAutomationRunning = false;
+		
+		// Refresh lists to show updated stats
+		this.loadSavedAutomations();
+		if (this.currentTab === 'automations') {
+			this.loadScheduledAutomations();
+		}
+	}
+
+	handleAutomationStatus(data) {
+		// Show status updates for automation execution
+		switch (data.status) {
+			case 'starting':
+				this.showToast(data.message, 'info');
+				this.isAutomationRunning = true;
+				break;
+			case 'running':
+				// Could show progress if needed
+				break;
+			case 'step_completed':
+				// Could show step completion status
+				break;
+			case 'completed':
+				this.showToast(data.message, 'success');
+				this.isAutomationRunning = false;
+				break;
+			case 'failed':
+			case 'error':
+				this.showToast(data.message, 'error');
+				this.isAutomationRunning = false;
+				break;
+		}
 	}
 }
 

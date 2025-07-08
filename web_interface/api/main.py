@@ -11,7 +11,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
@@ -26,6 +26,14 @@ from mlx_use.agent.service import Agent
 from mlx_use.agent.prompts import SystemPrompt
 from mlx_use.controller.service import Controller
 from mlx_use.agent.views import AgentOutput, ActionResult
+from mlx_use.automation import (
+	SavedAutomation, 
+	AutomationService, 
+	AutomationScheduler, 
+	AutomationRecorder,
+	AutomationExecutor,
+	get_all_templates
+)
 
 # Load environment variables
 load_dotenv()
@@ -1061,14 +1069,31 @@ class WebInterfaceApp:
 
 # Global app instance
 web_app = None
+automation_service = None
+automation_scheduler = None
+automation_recorder = None
+automation_executor = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 	"""Lifecycle manager for FastAPI app"""
-	global web_app
+	global web_app, automation_service, automation_scheduler, automation_recorder, automation_executor
 	web_app = WebInterfaceApp()
+	
+	# Initialize automation services
+	automation_service = AutomationService()
+	automation_executor = AutomationExecutor()
+	automation_scheduler = AutomationScheduler(automation_service, automation_executor)
+	automation_recorder = AutomationRecorder()
+	
+	# Start scheduler
+	automation_scheduler.start()
+	
 	yield
-	# Cleanup if needed
+	
+	# Cleanup
+	if automation_scheduler:
+		automation_scheduler.stop()
 
 app = FastAPI(
 	title="macOS-use Web Interface API",
@@ -1111,6 +1136,26 @@ class ProviderTestRequest(BaseModel):
 	provider: str
 	model: str
 	api_key: Optional[str] = None
+
+class AutomationSaveRequest(BaseModel):
+	name: str
+	description: Optional[str] = None
+	task: str
+	conversation_history: Optional[List[Dict]] = None
+	custom_system_message: Optional[str] = None
+	category: Optional[str] = None
+	tags: Optional[List[str]] = None
+	llm_provider: str = "OpenAI"
+	llm_model: str = "gpt-4"
+
+class AutomationExecuteRequest(BaseModel):
+	automation_id: str
+	runtime_parameters: Optional[Dict[str, Any]] = None
+
+class AutomationScheduleRequest(BaseModel):
+	automation_id: str
+	cron_expression: str
+	parameters: Optional[Dict[str, Any]] = None
 
 # Connection manager for WebSocket
 class ConnectionManager:
@@ -1318,6 +1363,251 @@ async def delete_session(session_name: str):
 		logger.error(f"Error deleting session: {e}")
 		raise HTTPException(status_code=500, detail=str(e))
 
+# Automation API Endpoints
+
+@app.get("/api/automations")
+async def get_automations():
+	"""Get list of all saved automations"""
+	try:
+		automations = automation_service.list_automations()
+		return JSONResponse(content=automations)
+	except Exception as e:
+		logger.error(f"Error getting automations: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/automations/{automation_id}")
+async def get_automation(automation_id: str):
+	"""Get specific automation by ID"""
+	try:
+		automation = automation_service.load_automation(automation_id)
+		if not automation:
+			raise HTTPException(status_code=404, detail="Automation not found")
+		return JSONResponse(content=automation.model_dump())
+	except Exception as e:
+		logger.error(f"Error getting automation {automation_id}: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/automations")
+async def save_automation(request: AutomationSaveRequest):
+	"""Save a successful interaction as an automation"""
+	try:
+		# Create automation from successful run
+		automation = automation_service.save_automation_from_successful_run(
+			name=request.name,
+			task=request.task,
+			history=None,  # Will need to be passed from actual agent run
+			agent_params={
+				"llm_provider": request.llm_provider,
+				"llm_model": request.llm_model,
+				"max_steps": 100,
+				"max_actions_per_step": 10
+			},
+			custom_system_message=request.custom_system_message,
+			description=request.description,
+			category=request.category,
+			tags=request.tags
+		)
+		
+		return JSONResponse(content={
+			"success": True,
+			"automation_id": automation.id,
+			"message": f"Automation '{request.name}' saved successfully"
+		})
+	except Exception as e:
+		logger.error(f"Error saving automation: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/automations/{automation_id}/execute")
+async def execute_automation(automation_id: str, request: AutomationExecuteRequest):
+	"""Execute a saved automation"""
+	try:
+		automation = automation_service.load_automation(automation_id)
+		if not automation:
+			raise HTTPException(status_code=404, detail="Automation not found")
+		
+		# Execute automation
+		result = await automation_executor.execute_automation(
+			automation, 
+			request.runtime_parameters
+		)
+		
+		# Update automation stats
+		automation.update_execution_stats(result.success)
+		automation_service.save_automation(automation)
+		
+		# Save execution result
+		automation_service.save_execution_result(result)
+		
+		return JSONResponse(content=result.model_dump())
+	except Exception as e:
+		logger.error(f"Error executing automation {automation_id}: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/automations/{automation_id}")
+async def delete_automation(automation_id: str):
+	"""Delete an automation"""
+	try:
+		success = automation_service.delete_automation(automation_id)
+		if not success:
+			raise HTTPException(status_code=404, detail="Automation not found")
+		
+		# Also unschedule if it was scheduled
+		automation_scheduler.unschedule_automation(automation_id)
+		
+		return JSONResponse(content={"success": True, "message": "Automation deleted successfully"})
+	except Exception as e:
+		logger.error(f"Error deleting automation {automation_id}: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/automations/{automation_id}/duplicate")
+async def duplicate_automation(automation_id: str, new_name: str):
+	"""Duplicate an automation"""
+	try:
+		duplicate = automation_service.duplicate_automation(automation_id, new_name)
+		if not duplicate:
+			raise HTTPException(status_code=404, detail="Automation not found")
+		
+		return JSONResponse(content={
+			"success": True,
+			"automation_id": duplicate.id,
+			"message": f"Automation duplicated as '{new_name}'"
+		})
+	except Exception as e:
+		logger.error(f"Error duplicating automation {automation_id}: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/automations/{automation_id}/history")
+async def get_automation_history(automation_id: str, limit: int = 50):
+	"""Get execution history for an automation"""
+	try:
+		history = automation_service.get_execution_history(automation_id, limit)
+		return JSONResponse(content=[result.model_dump() for result in history])
+	except Exception as e:
+		logger.error(f"Error getting automation history {automation_id}: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/automations/{automation_id}/schedule")
+async def schedule_automation(automation_id: str, request: AutomationScheduleRequest):
+	"""Add a schedule to an automation"""
+	try:
+		success = automation_scheduler.add_schedule_to_automation(
+			automation_id,
+			request.cron_expression,
+			request.parameters
+		)
+		
+		if not success:
+			raise HTTPException(status_code=404, detail="Automation not found")
+		
+		return JSONResponse(content={
+			"success": True,
+			"message": f"Schedule added to automation"
+		})
+	except Exception as e:
+		logger.error(f"Error scheduling automation {automation_id}: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/automations/{automation_id}/schedule/{schedule_index}")
+async def unschedule_automation(automation_id: str, schedule_index: int):
+	"""Remove a schedule from an automation"""
+	try:
+		success = automation_scheduler.remove_schedule_from_automation(automation_id, schedule_index)
+		if not success:
+			raise HTTPException(status_code=404, detail="Automation or schedule not found")
+		
+		return JSONResponse(content={
+			"success": True,
+			"message": "Schedule removed from automation"
+		})
+	except Exception as e:
+		logger.error(f"Error unscheduling automation {automation_id}: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/scheduled-automations")
+async def get_scheduled_automations():
+	"""Get list of scheduled automations"""
+	try:
+		scheduled = automation_scheduler.get_scheduled_automations()
+		return JSONResponse(content=scheduled)
+	except Exception as e:
+		logger.error(f"Error getting scheduled automations: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/automation-categories")
+async def get_automation_categories():
+	"""Get all automation categories"""
+	try:
+		categories = automation_service.get_categories()
+		return JSONResponse(content=categories)
+	except Exception as e:
+		logger.error(f"Error getting automation categories: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/automation-tags")
+async def get_automation_tags():
+	"""Get all automation tags"""
+	try:
+		tags = automation_service.get_tags()
+		return JSONResponse(content=tags)
+	except Exception as e:
+		logger.error(f"Error getting automation tags: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/automations/search")
+async def search_automations(query: str = "", category: Optional[str] = None, tags: Optional[str] = None):
+	"""Search automations"""
+	try:
+		tag_list = tags.split(",") if tags else None
+		results = automation_service.search_automations(query, category, tag_list)
+		return JSONResponse(content=results)
+	except Exception as e:
+		logger.error(f"Error searching automations: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/automation-templates")
+async def get_automation_templates():
+	"""Get available automation templates"""
+	try:
+		templates = get_all_templates()
+		template_data = []
+		
+		for template in templates:
+			template_data.append({
+				"name": template.name,
+				"description": template.description,
+				"category": template.category,
+				"parameters": template.parameters,
+				"preview_image": template.preview_image
+			})
+		
+		return JSONResponse(content=template_data)
+	except Exception as e:
+		logger.error(f"Error getting automation templates: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/automation-templates/{template_name}")
+async def create_automation_from_template(template_name: str, parameters: Dict[str, Any]):
+	"""Create automation from template"""
+	try:
+		automation = automation_service.create_automation_from_template(
+			template_name, 
+			f"{template_name} - {datetime.now().strftime('%Y%m%d_%H%M%S')}", 
+			parameters
+		)
+		
+		if automation:
+			return JSONResponse(content={
+				"success": True,
+				"automation_id": automation.id,
+				"message": f"Automation created from {template_name} template"
+			})
+		else:
+			raise HTTPException(status_code=404, detail="Template not found")
+			
+	except Exception as e:
+		logger.error(f"Error creating automation from template: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/chat/send")
 async def send_chat_message(request: ChatMessage):
 	"""Send a chat message using the full agent system"""
@@ -1393,6 +1683,10 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 				await handle_redirect_chat(message["data"], client_id)
 			elif message["type"] == "add_task":
 				await handle_add_task(message["data"], client_id)
+			elif message["type"] == "save_automation":
+				await handle_save_automation(message["data"], client_id)
+			elif message["type"] == "execute_automation":
+				await handle_execute_automation(message["data"], client_id)
 			elif message["type"] == "ping":
 				await manager.send_message({"type": "pong"}, client_id)
 				
@@ -1680,6 +1974,160 @@ async def handle_add_task(data: dict, client_id: str):
 				"message": f"Added task to queue: {task}",
 				"task_id": task_id,
 				"queue_status": task_queue.get_queue_status()
+			}
+		}, client_id)
+
+async def handle_save_automation(data: dict, client_id: str):
+	"""Handle saving automation from successful interaction"""
+	try:
+		# Extract automation data
+		name = data.get("name", "")
+		description = data.get("description")
+		task = data.get("task", "")
+		custom_system_message = data.get("custom_system_message")
+		category = data.get("category")
+		tags = data.get("tags", [])
+		llm_provider = data.get("llm_provider", "OpenAI")
+		llm_model = data.get("llm_model", "gpt-4")
+		
+		if not name or not task:
+			await manager.send_message({
+				"type": "automation_save_result",
+				"data": {
+					"success": False,
+					"message": "Name and task are required"
+				}
+			}, client_id)
+			return
+		
+		# Check if we have a chat agent with history to save from
+		if client_id in manager.chat_agents:
+			agent = manager.chat_agents[client_id]
+			
+			# Create automation from agent history
+			automation = automation_service.save_automation_from_successful_run(
+				name=name,
+				task=task,
+				history=agent.history,
+				agent_params={
+					"llm_provider": llm_provider,
+					"llm_model": llm_model,
+					"max_steps": 100,
+					"max_actions_per_step": 10
+				},
+				custom_system_message=custom_system_message,
+				description=description,
+				category=category,
+				tags=tags
+			)
+			
+			await manager.send_message({
+				"type": "automation_save_result",
+				"data": {
+					"success": True,
+					"automation_id": automation.id,
+					"message": f"Automation '{name}' saved successfully with {len(automation.steps)} steps"
+				}
+			}, client_id)
+		else:
+			await manager.send_message({
+				"type": "automation_save_result",
+				"data": {
+					"success": False,
+					"message": "No active agent session to save from"
+				}
+			}, client_id)
+			
+	except Exception as e:
+		logger.error(f"Error saving automation: {e}")
+		await manager.send_message({
+			"type": "automation_save_result",
+			"data": {
+				"success": False,
+				"message": f"Error saving automation: {str(e)}"
+			}
+		}, client_id)
+
+async def handle_execute_automation(data: dict, client_id: str):
+	"""Handle executing a saved automation via WebSocket"""
+	try:
+		automation_id = data.get("automation_id")
+		runtime_parameters = data.get("runtime_parameters", {})
+		
+		if not automation_id:
+			await manager.send_message({
+				"type": "automation_execute_result",
+				"data": {
+					"success": False,
+					"message": "Automation ID is required"
+				}
+			}, client_id)
+			return
+		
+		# Load automation
+		automation = automation_service.load_automation(automation_id)
+		if not automation:
+			await manager.send_message({
+				"type": "automation_execute_result",
+				"data": {
+					"success": False,
+					"message": "Automation not found"
+				}
+			}, client_id)
+			return
+		
+		# Send start message
+		await manager.send_message({
+			"type": "automation_status",
+			"data": {
+				"status": "starting",
+				"message": f"Starting automation: {automation.name}",
+				"automation_id": automation_id
+			}
+		}, client_id)
+		
+		# Create execution callback for streaming updates
+		async def execution_callback(update):
+			await manager.send_message({
+				"type": "automation_status",
+				"data": update
+			}, client_id)
+		
+		# Execute automation
+		result = await automation_executor.execute_automation(
+			automation, 
+			runtime_parameters,
+			callback=execution_callback
+		)
+		
+		# Update automation stats
+		automation.update_execution_stats(result.success)
+		automation_service.save_automation(automation)
+		
+		# Save execution result
+		automation_service.save_execution_result(result)
+		
+		# Send completion message
+		await manager.send_message({
+			"type": "automation_execute_result",
+			"data": {
+				"success": result.success,
+				"message": "Automation completed successfully" if result.success else f"Automation failed: {result.error}",
+				"execution_id": result.execution_id,
+				"duration": result.duration,
+				"steps_executed": result.steps_executed,
+				"actions_executed": result.actions_executed,
+				"result_data": result.result_data
+			}
+		}, client_id)
+		
+	except Exception as e:
+		logger.error(f"Error executing automation: {e}")
+		await manager.send_message({
+			"type": "automation_execute_result",
+			"data": {
+				"success": False,
+				"message": f"Error executing automation: {str(e)}"
 			}
 		}, client_id)
 

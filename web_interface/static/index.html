@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>macOS Automation - Elegant Interface</title>
+	<title>FF-Terminal:Desktop_ver - Elegant Interface</title>
 	<link rel="stylesheet" href="styles.css">
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,7 +16,7 @@
 		<div id="loading-screen" class="loading-screen">
 			<div class="loading-content">
 				<div class="loading-spinner"></div>
-				<h2>Initializing macOS Automation</h2>
+				<h2>Initializing FF-Terminal:Desktop_ver</h2>
 				<p>Setting up your elegant interface...</p>
 			</div>
 		</div>
@@ -29,7 +29,7 @@
 					<div class="header-left">
 						<div class="app-logo">
 							<i class="fas fa-desktop"></i>
-							<span>macOS Automation</span>
+							<span>FF-Terminal:Desktop_ver</span>
 						</div>
 					</div>
 					<div class="header-center">
@@ -45,6 +45,10 @@
 							<button class="nav-btn" data-tab="sessions">
 								<i class="fas fa-history"></i>
 								Sessions
+							</button>
+							<button class="nav-btn" data-tab="automations">
+								<i class="fas fa-magic"></i>
+								Automations
 							</button>
 							<button class="nav-btn" data-tab="providers">
 								<i class="fas fa-cogs"></i>
@@ -137,7 +141,7 @@
 								<div class="welcome-message">
 									<div class="welcome-content">
 										<i class="fas fa-robot"></i>
-										<h3>Welcome to macOS Automation!</h3>
+										<h3>Welcome to FF-Terminal:Desktop_ver!</h3>
 										<p>I'm your AI assistant for automating macOS tasks. You can:</p>
 										<ul>
 											<li>Ask me to control applications and perform tasks</li>
@@ -332,6 +336,80 @@
 									<div class="loading-sessions">
 										<i class="fas fa-spinner fa-spin"></i>
 										Loading sessions...
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Automations Tab -->
+				<div id="automations-tab" class="tab-content">
+					<div class="automations-layout">
+						<div class="automations-header">
+							<h2>
+								Saved Automations
+								<i class="fas fa-info-circle help-icon" title="Manage your saved automation workflows"></i>
+							</h2>
+							<div class="automations-actions">
+								<button id="save-automation-btn" class="btn btn-primary" onclick="app.saveCurrentChatAsAutomation()">
+									<i class="fas fa-save"></i>
+									Save Current Chat
+								</button>
+								<button id="refresh-automations-btn" class="btn btn-secondary" onclick="app.loadSavedAutomations()">
+									<i class="fas fa-sync"></i>
+									Refresh
+								</button>
+							</div>
+						</div>
+
+						<div class="automations-content">
+							<div class="automations-tabs">
+								<button class="automation-tab-btn active" data-section="saved">
+									<i class="fas fa-folder"></i>
+									Saved Automations
+								</button>
+								<button class="automation-tab-btn" data-section="scheduled">
+									<i class="fas fa-clock"></i>
+									Scheduled
+								</button>
+								<button class="automation-tab-btn" data-section="history">
+									<i class="fas fa-history"></i>
+									Execution History
+								</button>
+							</div>
+
+							<div class="automation-sections">
+								<div id="saved-automations-section" class="automation-section active">
+									<div class="automations-filter">
+										<input type="text" id="automation-search" placeholder="Search automations..." class="search-input">
+										<select id="automation-category-filter" class="filter-select">
+											<option value="">All Categories</option>
+										</select>
+									</div>
+									<div id="saved-automations-list" class="automations-list">
+										<div class="loading-automations">
+											<i class="fas fa-spinner fa-spin"></i>
+											Loading automations...
+										</div>
+									</div>
+								</div>
+
+								<div id="scheduled-automations-section" class="automation-section">
+									<div id="scheduled-automations-list" class="automations-list">
+										<div class="empty-state">
+											<p>No scheduled automations</p>
+											<small>Schedule automations to run automatically at specified times</small>
+										</div>
+									</div>
+								</div>
+
+								<div id="execution-history-section" class="automation-section">
+									<div id="execution-history-list" class="automations-list">
+										<div class="empty-state">
+											<p>No execution history</p>
+											<small>History of automation executions will appear here</small>
+										</div>
 									</div>
 								</div>
 							</div>
