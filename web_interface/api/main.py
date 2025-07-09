@@ -28,6 +28,12 @@ from mlx_use.agent.service import Agent
 from mlx_use.agent.prompts import SystemPrompt
 from mlx_use.controller.service import Controller
 from mlx_use.agent.views import AgentOutput, ActionResult
+from mlx_use.agent.context_bucket import ContextBucket
+from mlx_use.agent.context_models import (
+	ContextBucketConfig,
+	ContextItemType,
+	ContextItemPriority
+)
 from mlx_use.automation import (
 	SavedAutomation, 
 	AutomationService, 
@@ -45,10 +51,11 @@ logger = logging.getLogger(__name__)
 class ChatSystemPromptWithCustom(SystemPrompt):
 	"""System prompt optimized for chat interactions with macOS automation that supports custom messages"""
 	
-	def __init__(self, action_description: str, current_date: datetime, max_actions_per_step: int = 10, custom_message: str = None):
-		"""Initialize with optional custom message"""
+	def __init__(self, action_description: str, current_date: datetime, max_actions_per_step: int = 10, custom_message: str = None, context_bucket: ContextBucket = None):
+		"""Initialize with optional custom message and context bucket"""
 		super().__init__(action_description, current_date, max_actions_per_step)
 		self.custom_message = custom_message
+		self.context_bucket = context_bucket
 	
 	def important_rules(self) -> str:
 		"""Enhanced chat rules for multi-step autonomous execution with conversational capabilities"""
@@ -136,6 +143,11 @@ class ChatSystemPromptWithCustom(SystemPrompt):
 						step_info: Optional[any] = None) -> str:
 		"""Enhanced chat prompt with multi-step awareness and conversation context"""
 		
+		# Get context from context bucket if available
+		context_bucket_content = None
+		if self.context_bucket:
+			context_bucket_content = self.context_bucket.get_context_for_prompt(max_tokens=2000)
+		
 		prompt = f"""You are an AI assistant for macOS automation with AUTONOMOUS MULTI-STEP capabilities. You execute complex tasks until completion while maintaining conversational interaction.
 
 CRITICAL LOOP PREVENTION:
@@ -176,6 +188,12 @@ CONVERSATION CONTEXT:
 				if result.error:
 					error = result.error[:max_error_length] if max_error_length > 0 else result.error
 					prompt += f"❌ Error: {error}\n"
+
+		if context_bucket_content:
+			prompt += f"""
+CONTEXT INFORMATION:
+{context_bucket_content}
+"""
 
 		prompt += f"""
 TASK ANALYSIS:
@@ -262,6 +280,12 @@ CURRENT STATE:
 				if result.error:
 					error = result.error[:max_error_length] if max_error_length > 0 else result.error
 					prompt += f"❌ Error: {error}\n"
+
+		if context_bucket_content:
+			prompt += f"""
+CONTEXT INFORMATION:
+{context_bucket_content}
+"""
 
 		prompt += f"""
 TASK ANALYSIS:
@@ -502,6 +526,7 @@ class ChatAgent(Agent):
 		self.needs_input_callback = kwargs.pop('needs_input_callback', None)
 		self.client_id = kwargs.pop('client_id', None)
 		self.connection_manager = kwargs.pop('connection_manager', None)
+		self.context_bucket = kwargs.pop('context_bucket', None)
 		self.interrupt_flag = False
 		self.redirect_message = None
 		
@@ -1148,6 +1173,14 @@ async def lifespan(app: FastAPI):
 	automation_scheduler = AutomationScheduler(automation_service, automation_executor)
 	automation_recorder = AutomationRecorder()
 	
+	# Initialize global context bucket
+	context_config = ContextBucketConfig(
+		max_tokens=8000,
+		storage_path=str(web_app.sessions_dir / "context_buckets")
+	)
+	web_app.global_context_bucket = ContextBucket(context_config)
+	await web_app.global_context_bucket.load_state()
+	
 	# Start scheduler
 	automation_scheduler.start()
 	
@@ -1156,6 +1189,10 @@ async def lifespan(app: FastAPI):
 	# Cleanup
 	if automation_scheduler:
 		automation_scheduler.stop()
+	
+	# Save global context bucket state
+	if hasattr(web_app, 'global_context_bucket'):
+		await web_app.global_context_bucket._save_state()
 
 app = FastAPI(
 	title="macOS-use Web Interface API",
@@ -1219,12 +1256,32 @@ class AutomationScheduleRequest(BaseModel):
 	cron_expression: str
 	parameters: Optional[Dict[str, Any]] = None
 
+class ContextItemAddRequest(BaseModel):
+	type: str  # Will be validated as ContextItemType
+	title: str
+	content: str
+	metadata: Optional[Dict[str, Any]] = None
+	tags: Optional[List[str]] = None
+	priority: str = "medium"  # Will be validated as ContextItemPriority
+	source: Optional[str] = None
+
+class ContextItemUpdateRequest(BaseModel):
+	title: Optional[str] = None
+	content: Optional[str] = None
+	metadata: Optional[Dict[str, Any]] = None
+	tags: Optional[List[str]] = None
+	priority: Optional[str] = None
+
+class ContextBucketExportRequest(BaseModel):
+	format: str = "json"
+
 # Connection manager for WebSocket
 class ConnectionManager:
 	def __init__(self):
 		self.active_connections: Dict[str, WebSocket] = {}
 		self.agent_sessions: Dict[str, Agent] = {}
 		self.chat_agents: Dict[str, Agent] = {}  # Track chat agents separately
+		self.context_buckets: Dict[str, ContextBucket] = {}  # Context buckets per client
 
 	async def connect(self, websocket: WebSocket, client_id: str):
 		await websocket.accept()
@@ -1248,6 +1305,10 @@ class ConnectionManager:
 			del self.conversation_memories[client_id]
 		if hasattr(self, 'task_queues') and client_id in self.task_queues:
 			del self.task_queues[client_id]
+		
+		# Clean up context buckets
+		if client_id in self.context_buckets:
+			del self.context_buckets[client_id]
 
 	def is_connection_active(self, client_id: str) -> bool:
 		"""Check if a WebSocket connection is still active"""
@@ -1704,6 +1765,192 @@ async def create_automation_from_template(template_name: str, parameters: Dict[s
 		logger.error(f"Error creating automation from template: {e}")
 		raise HTTPException(status_code=500, detail=str(e))
 
+# Context Bucket API Endpoints
+
+@app.post("/api/context-bucket/add")
+async def add_context_item(request: ContextItemAddRequest):
+	"""Add item to context bucket"""
+	try:
+		# For now, we'll use a global context bucket
+		# In a real implementation, this should be per-session
+		if not hasattr(web_app, 'global_context_bucket'):
+			context_config = ContextBucketConfig(
+				max_tokens=8000,
+				storage_path=str(web_app.sessions_dir / "context_buckets")
+			)
+			web_app.global_context_bucket = ContextBucket(context_config)
+			await web_app.global_context_bucket.load_state()
+		
+		# Validate enum values
+		try:
+			item_type = ContextItemType(request.type)
+			priority = ContextItemPriority(request.priority)
+		except ValueError as e:
+			raise HTTPException(status_code=400, detail=f"Invalid enum value: {str(e)}")
+		
+		# Add the item
+		item = await web_app.global_context_bucket.add_item(
+			type=item_type,
+			title=request.title,
+			content=request.content,
+			metadata=request.metadata or {},
+			tags=request.tags or [],
+			priority=priority,
+			source=request.source
+		)
+		
+		if item:
+			return JSONResponse(content={
+				"success": True,
+				"item": item.model_dump(mode='json'),
+				"message": "Context item added successfully"
+			})
+		else:
+			return JSONResponse(content={
+				"success": False,
+				"message": "Failed to add item - context bucket may be full"
+			})
+	except Exception as e:
+		logger.error(f"Error adding context item: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/context-bucket/items")
+async def get_context_items():
+	"""List all context items"""
+	try:
+		if not hasattr(web_app, 'global_context_bucket'):
+			return JSONResponse(content=[])
+		
+		items = web_app.global_context_bucket.get_all_items()
+		stats = web_app.global_context_bucket.get_stats()
+		
+		return JSONResponse(content={
+			"items": [item.model_dump(mode='json') for item in items],
+			"stats": stats
+		})
+	except Exception as e:
+		logger.error(f"Error getting context items: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/context-bucket/items/{item_id}")
+async def remove_context_item(item_id: str):
+	"""Remove specific item from context bucket"""
+	try:
+		if not hasattr(web_app, 'global_context_bucket'):
+			raise HTTPException(status_code=404, detail="Context bucket not initialized")
+		
+		success = await web_app.global_context_bucket.remove_item(item_id)
+		
+		if success:
+			return JSONResponse(content={
+				"success": True,
+				"message": "Context item removed successfully"
+			})
+		else:
+			raise HTTPException(status_code=404, detail="Context item not found")
+	except Exception as e:
+		logger.error(f"Error removing context item: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/context-bucket/items/{item_id}")
+async def update_context_item(item_id: str, request: ContextItemUpdateRequest):
+	"""Update a context item"""
+	try:
+		if not hasattr(web_app, 'global_context_bucket'):
+			raise HTTPException(status_code=404, detail="Context bucket not initialized")
+		
+		# Build update dict
+		updates = {}
+		if request.title is not None:
+			updates['title'] = request.title
+		if request.content is not None:
+			updates['content'] = request.content
+		if request.metadata is not None:
+			updates['metadata'] = request.metadata
+		if request.tags is not None:
+			updates['tags'] = request.tags
+		if request.priority is not None:
+			try:
+				updates['priority'] = ContextItemPriority(request.priority)
+			except ValueError:
+				raise HTTPException(status_code=400, detail="Invalid priority value")
+		
+		item = await web_app.global_context_bucket.update_item(item_id, **updates)
+		
+		if item:
+			return JSONResponse(content={
+				"success": True,
+				"item": item.model_dump(mode='json'),
+				"message": "Context item updated successfully"
+			})
+		else:
+			raise HTTPException(status_code=404, detail="Context item not found")
+	except Exception as e:
+		logger.error(f"Error updating context item: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/context-bucket/clear")
+async def clear_context_bucket():
+	"""Clear all context items"""
+	try:
+		if not hasattr(web_app, 'global_context_bucket'):
+			return JSONResponse(content={
+				"success": True,
+				"message": "Context bucket already empty"
+			})
+		
+		await web_app.global_context_bucket.clear()
+		
+		return JSONResponse(content={
+			"success": True,
+			"message": "Context bucket cleared successfully"
+		})
+	except Exception as e:
+		logger.error(f"Error clearing context bucket: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/context-bucket/export")
+async def export_context_bucket():
+	"""Export context bucket as JSON"""
+	try:
+		if not hasattr(web_app, 'global_context_bucket'):
+			return JSONResponse(content={
+				"items": [],
+				"total_tokens": 0,
+				"max_tokens": 8000,
+				"created_at": datetime.utcnow().isoformat(),
+				"updated_at": datetime.utcnow().isoformat()
+			})
+		
+		json_data = await web_app.global_context_bucket.export_to_json()
+		
+		return JSONResponse(content=json.loads(json_data))
+	except Exception as e:
+		logger.error(f"Error exporting context bucket: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/context-bucket/import")
+async def import_context_bucket(data: dict):
+	"""Import context bucket from JSON"""
+	try:
+		if not hasattr(web_app, 'global_context_bucket'):
+			context_config = ContextBucketConfig(
+				max_tokens=8000,
+				storage_path=str(web_app.sessions_dir / "context_buckets")
+			)
+			web_app.global_context_bucket = ContextBucket(context_config)
+		
+		await web_app.global_context_bucket.import_from_json(json.dumps(data))
+		
+		return JSONResponse(content={
+			"success": True,
+			"message": "Context bucket imported successfully",
+			"stats": web_app.global_context_bucket.get_stats()
+		})
+	except Exception as e:
+		logger.error(f"Error importing context bucket: {e}")
+		raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/refine-prompt")
 async def refine_prompt(request: dict):
 	"""Refine a prompt using direct LLM call without agent system"""
@@ -1859,13 +2106,25 @@ async def handle_agent_task(task_data: dict, client_id: str):
 		# Get LLM instance
 		llm = get_llm(llm_provider, llm_model, api_key)
 		
+		# Get or create context bucket for client
+		if client_id not in manager.context_buckets:
+			context_config = ContextBucketConfig(
+				max_tokens=8000,
+				storage_path=str(web_app.sessions_dir / "context_buckets" / client_id) if web_app else None
+			)
+			manager.context_buckets[client_id] = ContextBucket(context_config)
+			if context_config.storage_path:
+				await manager.context_buckets[client_id].load_state()
+		
+		context_bucket = manager.context_buckets[client_id]
+		
 		# Choose system prompt class based on whether custom message is provided
 		if custom_system_message:
-			system_prompt_class = SystemPromptWithCustom
-			system_prompt_kwargs = {"custom_message": custom_system_message}
+			system_prompt_class = ChatSystemPromptWithCustom
+			system_prompt_kwargs = {"custom_message": custom_system_message, "context_bucket": context_bucket}
 		else:
-			system_prompt_class = SystemPrompt
-			system_prompt_kwargs = {}
+			system_prompt_class = ChatSystemPromptWithCustom
+			system_prompt_kwargs = {"context_bucket": context_bucket}
 		
 		# Create agent
 		agent = Agent(
@@ -1939,6 +2198,18 @@ async def handle_chat_message(message_data: dict, client_id: str):
 	conversation_memory = getattr(manager, 'conversation_memories', {}).get(client_id, ConversationMemory())
 	task_queue = getattr(manager, 'task_queues', {}).get(client_id, ChatTaskQueue())
 	
+	# Get or create context bucket for client
+	if client_id not in manager.context_buckets:
+		context_config = ContextBucketConfig(
+			max_tokens=8000,
+			storage_path=str(web_app.sessions_dir / "context_buckets" / client_id) if web_app else None
+		)
+		manager.context_buckets[client_id] = ContextBucket(context_config)
+		if context_config.storage_path:
+			await manager.context_buckets[client_id].load_state()
+	
+	context_bucket = manager.context_buckets[client_id]
+	
 	try:
 		message = message_data["message"]
 		llm_provider = message_data.get("llm_provider", "OpenAI")
@@ -1969,10 +2240,10 @@ async def handle_chat_message(message_data: dict, client_id: str):
 		# Choose system prompt class based on whether custom message is provided
 		if custom_system_message:
 			system_prompt_class = ChatSystemPromptWithCustom
-			system_prompt_kwargs = {"custom_message": custom_system_message}
+			system_prompt_kwargs = {"custom_message": custom_system_message, "context_bucket": context_bucket}
 		else:
 			system_prompt_class = ChatSystemPromptWithCustom
-			system_prompt_kwargs = {}
+			system_prompt_kwargs = {"context_bucket": context_bucket}
 		
 		# Create streaming callback with connection check
 		async def streaming_callback(data):
@@ -1993,7 +2264,8 @@ async def handle_chat_message(message_data: dict, client_id: str):
 			task_queue=task_queue,
 			streaming_callback=streaming_callback,
 			client_id=client_id,
-			connection_manager=manager
+			connection_manager=manager,
+			context_bucket=context_bucket
 		)
 		
 		# Store agent and memory for potential stopping and persistence

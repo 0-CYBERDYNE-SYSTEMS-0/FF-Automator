@@ -72,6 +72,14 @@ class FFTerminalApp {
 				this.switchTab(tab);
 			});
 		});
+		
+		// Mobile Navigation
+		document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+			btn.addEventListener('click', (e) => {
+				const tab = e.currentTarget.dataset.tab;
+				this.switchTab(tab);
+			});
+		});
 
 		// Chat functionality
 		this.setupChatListeners();
@@ -90,6 +98,9 @@ class FFTerminalApp {
 
 		// Help icons
 		this.setupHelpIcons();
+		
+		// Context bucket functionality
+		this.setupContextBucket();
 	}
 
 	setupChatListeners() {
@@ -288,11 +299,18 @@ class FFTerminalApp {
 
 	// Tab Management
 	switchTab(tabName) {
-		// Update navigation
+		// Update navigation - handle both desktop and mobile nav buttons
 		document.querySelectorAll('.nav-btn').forEach(btn => {
 			btn.classList.remove('active');
 		});
-		document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+		document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+			btn.classList.remove('active');
+		});
+		
+		// Add active class to all matching tab buttons (desktop and mobile)
+		document.querySelectorAll(`[data-tab="${tabName}"]`).forEach(btn => {
+			btn.classList.add('active');
+		});
 
 		// Update content
 		document.querySelectorAll('.tab-content').forEach(content => {
@@ -1924,9 +1942,301 @@ Only return the refined prompt text, nothing else.`;
 				break;
 		}
 	}
+
+	// Context Bucket Methods
+	setupContextBucket() {
+		// Toggle button
+		const toggleBtn = document.getElementById('toggle-context-bucket');
+		if (toggleBtn) {
+			toggleBtn.addEventListener('click', () => this.toggleContextBucket());
+		}
+
+		// Action buttons
+		document.getElementById('add-context-btn')?.addEventListener('click', () => this.showAddContextModal());
+		document.getElementById('clear-context-btn')?.addEventListener('click', () => this.clearContextBucket());
+		document.getElementById('export-context-btn')?.addEventListener('click', () => this.exportContextBucket());
+		document.getElementById('import-context-btn')?.addEventListener('click', () => this.showImportContextModal());
+
+		// Load initial context items
+		this.loadContextItems();
+	}
+
+	toggleContextBucket() {
+		const content = document.getElementById('context-bucket-content');
+		const toggleBtn = document.getElementById('toggle-context-bucket');
+		const icon = toggleBtn.querySelector('i');
+
+		if (content.classList.contains('collapsed')) {
+			content.classList.remove('collapsed');
+			icon.classList.remove('fa-chevron-right');
+			icon.classList.add('fa-chevron-down');
+		} else {
+			content.classList.add('collapsed');
+			icon.classList.remove('fa-chevron-down');
+			icon.classList.add('fa-chevron-right');
+		}
+	}
+
+	async loadContextItems() {
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/items`);
+			const data = await response.json();
+			
+			this.renderContextItems(data.items || []);
+			this.updateContextStats(data.stats || {});
+		} catch (error) {
+			console.error('Failed to load context items:', error);
+		}
+	}
+
+	renderContextItems(items) {
+		const container = document.getElementById('context-bucket-items');
+		
+		if (items.length === 0) {
+			container.innerHTML = `
+				<div class="empty-context">
+					<i class="fas fa-folder-open"></i>
+					<p>No context items yet. Add documents, instructions, or references.</p>
+				</div>
+			`;
+			return;
+		}
+
+		container.innerHTML = items.map(item => `
+			<div class="context-item" data-item-id="${item.id}">
+				<div class="context-item-header">
+					<div>
+						<span class="context-item-type">${item.type}</span>
+						<span class="context-item-title">${this.escapeHtml(item.title)}</span>
+					</div>
+					<div class="context-item-actions">
+						<span class="context-item-priority priority-${item.priority}">${item.priority}</span>
+						<button class="btn-icon-small" onclick="app.editContextItem('${item.id}')" title="Edit">
+							<i class="fas fa-edit"></i>
+						</button>
+						<button class="btn-icon-small" onclick="app.deleteContextItem('${item.id}')" title="Delete">
+							<i class="fas fa-trash"></i>
+						</button>
+					</div>
+				</div>
+				<div class="context-item-content">
+					${this.escapeHtml(item.content).substring(0, 150)}${item.content.length > 150 ? '...' : ''}
+				</div>
+				${item.tags && item.tags.length > 0 ? `
+					<div class="context-item-tags">
+						${item.tags.map(tag => `<span class="context-tag">${this.escapeHtml(tag)}</span>`).join('')}
+					</div>
+				` : ''}
+			</div>
+		`).join('');
+	}
+
+	updateContextStats(stats) {
+		const usedTokens = stats.total_tokens || 0;
+		const maxTokens = stats.max_tokens || 8000;
+		const percentage = (usedTokens / maxTokens) * 100;
+
+		document.getElementById('context-tokens-used').textContent = usedTokens;
+		document.getElementById('context-tokens-max').textContent = maxTokens;
+		
+		const progressBar = document.getElementById('token-progress-bar');
+		progressBar.style.width = `${percentage}%`;
+		
+		// Update color based on usage
+		progressBar.classList.remove('warning', 'danger');
+		if (percentage > 90) {
+			progressBar.classList.add('danger');
+		} else if (percentage > 70) {
+			progressBar.classList.add('warning');
+		}
+	}
+
+	showAddContextModal() {
+		const modal = document.getElementById('context-add-modal');
+		modal.classList.remove('hidden');
+		
+		// Clear form
+		document.getElementById('context-type').value = 'document';
+		document.getElementById('context-title').value = '';
+		document.getElementById('context-content').value = '';
+		document.getElementById('context-priority').value = 'medium';
+		document.getElementById('context-tags').value = '';
+		document.getElementById('context-source').value = '';
+	}
+
+	async saveContextItem() {
+		const type = document.getElementById('context-type').value;
+		const title = document.getElementById('context-title').value.trim();
+		const content = document.getElementById('context-content').value.trim();
+		const priority = document.getElementById('context-priority').value;
+		const tags = document.getElementById('context-tags').value
+			.split(',')
+			.map(tag => tag.trim())
+			.filter(tag => tag.length > 0);
+		const source = document.getElementById('context-source').value.trim();
+
+		if (!title || !content) {
+			this.showToast('Title and content are required', 'error');
+			return;
+		}
+
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/add`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					type,
+					title,
+					content,
+					priority,
+					tags,
+					source: source || undefined
+				})
+			});
+
+			const result = await response.json();
+			
+			if (result.success) {
+				this.showToast('Context item added successfully', 'success');
+				this.closeContextModal();
+				this.loadContextItems();
+			} else {
+				this.showToast(result.message || 'Failed to add context item', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to save context item:', error);
+			this.showToast('Failed to save context item', 'error');
+		}
+	}
+
+	closeContextModal() {
+		document.getElementById('context-add-modal').classList.add('hidden');
+	}
+
+	async deleteContextItem(itemId) {
+		if (!confirm('Are you sure you want to delete this context item?')) {
+			return;
+		}
+
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/items/${itemId}`, {
+				method: 'DELETE'
+			});
+
+			const result = await response.json();
+			
+			if (result.success) {
+				this.showToast('Context item deleted', 'success');
+				this.loadContextItems();
+			} else {
+				this.showToast('Failed to delete context item', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to delete context item:', error);
+			this.showToast('Failed to delete context item', 'error');
+		}
+	}
+
+	async clearContextBucket() {
+		if (!confirm('Are you sure you want to clear all context items?')) {
+			return;
+		}
+
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/clear`, {
+				method: 'POST'
+			});
+
+			const result = await response.json();
+			
+			if (result.success) {
+				this.showToast('Context bucket cleared', 'success');
+				this.loadContextItems();
+			} else {
+				this.showToast('Failed to clear context bucket', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to clear context bucket:', error);
+			this.showToast('Failed to clear context bucket', 'error');
+		}
+	}
+
+	async exportContextBucket() {
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/export`);
+			const data = await response.json();
+			
+			// Create and download JSON file
+			const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `context-bucket-${new Date().toISOString().split('T')[0]}.json`;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+			
+			this.showToast('Context bucket exported', 'success');
+		} catch (error) {
+			console.error('Failed to export context bucket:', error);
+			this.showToast('Failed to export context bucket', 'error');
+		}
+	}
+
+	showImportContextModal() {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = '.json';
+		
+		input.onchange = async (e) => {
+			const file = e.target.files[0];
+			if (!file) return;
+			
+			try {
+				const text = await file.text();
+				const data = JSON.parse(text);
+				
+				const response = await fetch(`${this.apiBase}/api/context-bucket/import`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(data)
+				});
+				
+				const result = await response.json();
+				
+				if (result.success) {
+					this.showToast('Context bucket imported successfully', 'success');
+					this.loadContextItems();
+				} else {
+					this.showToast('Failed to import context bucket', 'error');
+				}
+			} catch (error) {
+				console.error('Failed to import context bucket:', error);
+				this.showToast('Invalid context bucket file', 'error');
+			}
+		};
+		
+		input.click();
+	}
+
+	// Helper method for editing context items (placeholder for future implementation)
+	editContextItem(itemId) {
+		// TODO: Implement edit functionality
+		this.showToast('Edit functionality coming soon', 'info');
+	}
 }
 
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
 	window.app = new FFTerminalApp();
 });
+
+// Global functions for context modal
+window.closeContextModal = function() {
+	window.app.closeContextModal();
+};
+
+window.saveContextItem = function() {
+	window.app.saveContextItem();
+};
