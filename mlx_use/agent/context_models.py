@@ -30,7 +30,10 @@ class ContextItemPriority(str, Enum):
 
 class ContextItem(BaseModel):
 	"""Model for a single context item."""
-	model_config = ConfigDict(str_strip_whitespace=True)
+	model_config = ConfigDict(
+		str_strip_whitespace=True,
+		json_encoders={datetime: lambda v: v.isoformat() if v else None}
+	)
 	
 	id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 	type: ContextItemType

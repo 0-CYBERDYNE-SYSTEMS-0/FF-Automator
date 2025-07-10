@@ -1824,8 +1824,21 @@ async def get_context_items():
 		items = web_app.global_context_bucket.get_all_items()
 		stats = web_app.global_context_bucket.get_stats()
 		
+		# Convert items to dict with proper datetime serialization
+		serialized_items = []
+		for item in items:
+			item_dict = item.model_dump()
+			# Convert datetime objects to ISO format strings
+			if item_dict.get('created_at'):
+				item_dict['created_at'] = item_dict['created_at'].isoformat()
+			if item_dict.get('updated_at'):
+				item_dict['updated_at'] = item_dict['updated_at'].isoformat()
+			if item_dict.get('last_used'):
+				item_dict['last_used'] = item_dict['last_used'].isoformat()
+			serialized_items.append(item_dict)
+		
 		return JSONResponse(content={
-			"items": [item.model_dump(mode='json') for item in items],
+			"items": serialized_items,
 			"stats": stats
 		})
 	except Exception as e:
