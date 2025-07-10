@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
+	"io"
+	"bytes"
 
 	"github.com/macOS-use/go-ui/internal/backend"
 	"github.com/macOS-use/go-ui/internal/websocket"
@@ -29,10 +32,48 @@ type ChatMessage struct {
 }
 
 type TaskRequest struct {
-	Type     string `json:"type"` // "chat" or "agent"
-	Message  string `json:"message"`
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
+	Type                  string `json:"type"` // "chat" or "agent"
+	Message               string `json:"message"`
+	Provider              string `json:"provider"`
+	Model                 string `json:"model"`
+	CustomSystemMessage   string `json:"custom_system_message,omitempty"`
+}
+
+type Session struct {
+	Name            string    `json:"name"`
+	Timestamp       string    `json:"timestamp"`
+	MessageCount    int       `json:"message_count"`
+	SuccessCount    int       `json:"success_count"`
+	FailureCount    int       `json:"failure_count"`
+	ConversationHistory []ChatMessage `json:"conversation_history"`
+}
+
+type Automation struct {
+	ID                    string            `json:"id"`
+	Name                  string            `json:"name"`
+	Description           string            `json:"description"`
+	Task                  string            `json:"task"`
+	Category              string            `json:"category"`
+	Tags                  []string          `json:"tags"`
+	LLMProvider           string            `json:"llm_provider"`
+	LLMModel              string            `json:"llm_model"`
+	CustomSystemMessage   string            `json:"custom_system_message,omitempty"`
+	ConversationHistory   []ChatMessage     `json:"conversation_history"`
+	CreatedAt             string            `json:"created_at"`
+	ExecutionCount        int               `json:"execution_count"`
+	SuccessCount          int               `json:"success_count"`
+	FailureCount          int               `json:"failure_count"`
+	LastExecutedAt        string            `json:"last_executed_at"`
+	RuntimeParameters     map[string]interface{} `json:"runtime_parameters,omitempty"`
+}
+
+type AutomationTemplate struct {
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Task        string                 `json:"task"`
+	Category    string                 `json:"category"`
+	Tags        []string               `json:"tags"`
+	Parameters  map[string]interface{} `json:"parameters,omitempty"`
 }
 
 func NewApp() *App {
@@ -69,13 +110,22 @@ func (a *App) OnShutdown(ctx context.Context) {
 
 // GetProviders returns available LLM providers
 func (a *App) GetProviders() ([]Provider, error) {
-	// This would make an HTTP request to the Python backend
-	// For now, returning mock data
-	return []Provider{
-		{Name: "OpenAI", Models: []string{"gpt-4", "gpt-4o", "gpt-3.5-turbo"}, Available: true},
-		{Name: "Anthropic", Models: []string{"claude-3-opus", "claude-3-sonnet"}, Available: true},
-		{Name: "Google", Models: []string{"gemini-pro", "gemini-pro-vision"}, Available: true},
-	}, nil
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/providers")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get providers: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("providers API returned status %d", resp.StatusCode)
+	}
+
+	var providers []Provider
+	if err := json.NewDecoder(resp.Body).Decode(&providers); err != nil {
+		return nil, fmt.Errorf("failed to decode providers: %v", err)
+	}
+
+	return providers, nil
 }
 
 // SendTask sends a task to the Python backend
@@ -104,20 +154,294 @@ func (a *App) StopTask() error {
 }
 
 // GetSessions returns saved sessions
-func (a *App) GetSessions() ([]string, error) {
-	// This would make an HTTP request to the Python backend
-	return []string{"session1", "session2"}, nil
+func (a *App) GetSessions() ([]Session, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/sessions")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sessions: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("sessions API returned status %d", resp.StatusCode)
+	}
+
+	var sessions []Session
+	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil {
+		return nil, fmt.Errorf("failed to decode sessions: %v", err)
+	}
+
+	return sessions, nil
 }
 
 // LoadSession loads a saved session
-func (a *App) LoadSession(name string) error {
-	// Implementation would load session from backend
-	return nil
+func (a *App) LoadSession(name string) (*Session, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/sessions/" + name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load session: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("session API returned status %d", resp.StatusCode)
+	}
+
+	var session Session
+	if err := json.NewDecoder(resp.Body).Decode(&session); err != nil {
+		return nil, fmt.Errorf("failed to decode session: %v", err)
+	}
+
+	return &session, nil
 }
 
 // SaveSession saves the current session
-func (a *App) SaveSession(name string) error {
-	// Implementation would save session to backend
+func (a *App) SaveSession(session Session) error {
+	jsonData, err := json.Marshal(session)
+	if err != nil {
+		return fmt.Errorf("failed to marshal session: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/sessions", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to save session: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("save session API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// DeleteSession deletes a saved session
+func (a *App) DeleteSession(name string) error {
+	req, err := http.NewRequest("DELETE", a.pythonManager.GetBackendURL()+"/api/sessions/"+name, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %v", err)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to delete session: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("delete session API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// GetAutomations returns saved automations
+func (a *App) GetAutomations() ([]Automation, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/automations")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get automations: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("automations API returned status %d", resp.StatusCode)
+	}
+
+	var automations []Automation
+	if err := json.NewDecoder(resp.Body).Decode(&automations); err != nil {
+		return nil, fmt.Errorf("failed to decode automations: %v", err)
+	}
+
+	return automations, nil
+}
+
+// GetAutomation returns a specific automation by ID
+func (a *App) GetAutomation(id string) (*Automation, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/automations/" + id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get automation: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("automation API returned status %d", resp.StatusCode)
+	}
+
+	var automation Automation
+	if err := json.NewDecoder(resp.Body).Decode(&automation); err != nil {
+		return nil, fmt.Errorf("failed to decode automation: %v", err)
+	}
+
+	return &automation, nil
+}
+
+// SaveAutomation saves a new automation
+func (a *App) SaveAutomation(automation Automation) error {
+	jsonData, err := json.Marshal(automation)
+	if err != nil {
+		return fmt.Errorf("failed to marshal automation: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/automations", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to save automation: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("save automation API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// DeleteAutomation deletes an automation
+func (a *App) DeleteAutomation(id string) error {
+	req, err := http.NewRequest("DELETE", a.pythonManager.GetBackendURL()+"/api/automations/"+id, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %v", err)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to delete automation: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("delete automation API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// ExecuteAutomation executes an automation
+func (a *App) ExecuteAutomation(id string, parameters map[string]interface{}) error {
+	requestData := map[string]interface{}{
+		"automation_id":       id,
+		"runtime_parameters": parameters,
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal execute request: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/automations/"+id+"/execute", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to execute automation: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("execute automation API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// GetAutomationTemplates returns available automation templates
+func (a *App) GetAutomationTemplates() ([]AutomationTemplate, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/automation-templates")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get automation templates: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("automation templates API returned status %d", resp.StatusCode)
+	}
+
+	var templates []AutomationTemplate
+	if err := json.NewDecoder(resp.Body).Decode(&templates); err != nil {
+		return nil, fmt.Errorf("failed to decode automation templates: %v", err)
+	}
+
+	return templates, nil
+}
+
+// CreateAutomationFromTemplate creates an automation from a template
+func (a *App) CreateAutomationFromTemplate(templateName string, parameters map[string]interface{}) error {
+	jsonData, err := json.Marshal(parameters)
+	if err != nil {
+		return fmt.Errorf("failed to marshal template parameters: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/automation-templates/"+templateName, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create automation from template: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("create automation from template API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// GetAutomationCategories returns available automation categories
+func (a *App) GetAutomationCategories() ([]string, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/automation-categories")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get automation categories: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("automation categories API returned status %d", resp.StatusCode)
+	}
+
+	var categories []string
+	if err := json.NewDecoder(resp.Body).Decode(&categories); err != nil {
+		return nil, fmt.Errorf("failed to decode automation categories: %v", err)
+	}
+
+	return categories, nil
+}
+
+// GetAutomationTags returns available automation tags
+func (a *App) GetAutomationTags() ([]string, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/automation-tags")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get automation tags: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("automation tags API returned status %d", resp.StatusCode)
+	}
+
+	var tags []string
+	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
+		return nil, fmt.Errorf("failed to decode automation tags: %v", err)
+	}
+
+	return tags, nil
+}
+
+// TestProvider tests a provider connection
+func (a *App) TestProvider(provider string) error {
+	requestData := map[string]string{
+		"provider": provider,
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal test request: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/providers/test", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to test provider: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("provider test failed: %s", string(body))
+	}
+
 	return nil
 }
 

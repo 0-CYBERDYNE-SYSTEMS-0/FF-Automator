@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -128,7 +129,7 @@ func (pm *PythonManager) WaitForReady(ctx context.Context) error {
 	}
 }
 
-func (pm *PythonManager) readLogs(pipe *os.File, source string) {
+func (pm *PythonManager) readLogs(pipe io.ReadCloser, source string) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
 		line := scanner.Text()

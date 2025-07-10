@@ -4,6 +4,11 @@ let isExecuting = false;
 let providers = [];
 let selectedProvider = null;
 let selectedModel = null;
+let currentSession = null;
+let conversationHistory = [];
+let sessions = [];
+let automations = [];
+let automationTemplates = [];
 
 // DOM elements
 const providerSelect = document.getElementById('provider');
@@ -25,6 +30,8 @@ const toggleLogsBtn = document.getElementById('toggle-logs');
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     await loadProviders();
+    await loadSessions();
+    await loadAutomations();
     setupEventListeners();
     setupWailsEvents();
 });
@@ -64,6 +71,24 @@ function setupEventListeners() {
         logPanel.classList.toggle('expanded');
         toggleLogsBtn.textContent = logPanel.classList.contains('expanded') ? '▲' : '▼';
     });
+
+    // Session management
+    const saveSessionBtn = document.getElementById('save-session');
+    const loadSessionBtn = document.getElementById('load-session');
+    const sessionSelect = document.getElementById('session-list');
+    
+    saveSessionBtn.addEventListener('click', saveCurrentSession);
+    loadSessionBtn.addEventListener('click', loadSelectedSession);
+    sessionSelect.addEventListener('change', onSessionSelectChange);
+    
+    // Automation management
+    const saveAutomationBtn = document.getElementById('save-automation');
+    const runAutomationBtn = document.getElementById('run-automation');
+    const automationSelect = document.getElementById('automation-list');
+    
+    saveAutomationBtn.addEventListener('click', saveCurrentAutomation);
+    runAutomationBtn.addEventListener('click', runSelectedAutomation);
+    automationSelect.addEventListener('change', onAutomationSelectChange);
 }
 
 // Setup Wails event listeners
@@ -100,6 +125,177 @@ async function loadProviders() {
         console.error('Failed to load providers:', error);
         updateConnectionStatus('error');
     }
+}
+
+// Load sessions
+async function loadSessions() {
+    try {
+        sessions = await window.go.ui.App.GetSessions();
+        
+        const sessionSelect = document.getElementById('session-list');
+        sessionSelect.innerHTML = '<option value="">Select a session</option>';
+        
+        sessions.forEach(session => {
+            const option = document.createElement('option');
+            option.value = session.name;
+            option.textContent = `${session.name} (${session.message_count} messages)`;
+            sessionSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Failed to load sessions:', error);
+    }
+}
+
+// Save current session
+async function saveCurrentSession() {
+    const sessionName = prompt('Enter session name:');
+    if (!sessionName) return;
+    
+    try {
+        const session = {
+            name: sessionName,
+            timestamp: new Date().toISOString(),
+            message_count: conversationHistory.length,
+            success_count: 0, // Could be tracked
+            failure_count: 0, // Could be tracked
+            conversation_history: conversationHistory
+        };
+        
+        await window.go.ui.App.SaveSession(session);
+        await loadSessions();
+        
+        appendChatMessage('system', `Session "${sessionName}" saved successfully`);
+    } catch (error) {
+        console.error('Failed to save session:', error);
+        appendChatMessage('system', `Failed to save session: ${error.message}`);
+    }
+}
+
+// Load selected session
+async function loadSelectedSession() {
+    const sessionSelect = document.getElementById('session-list');
+    const sessionName = sessionSelect.value;
+    
+    if (!sessionName) {
+        alert('Please select a session to load');
+        return;
+    }
+    
+    try {
+        const session = await window.go.ui.App.LoadSession(sessionName);
+        
+        // Clear current chat
+        chatMessages.innerHTML = '';
+        conversationHistory = [];
+        
+        // Load conversation history
+        if (session.conversation_history) {
+            conversationHistory = session.conversation_history;
+            session.conversation_history.forEach(msg => {
+                appendChatMessage(msg.role, msg.content);
+            });
+        }
+        
+        currentSession = session;
+        appendChatMessage('system', `Session "${sessionName}" loaded successfully`);
+    } catch (error) {
+        console.error('Failed to load session:', error);
+        appendChatMessage('system', `Failed to load session: ${error.message}`);
+    }
+}
+
+// Session select change handler
+function onSessionSelectChange() {
+    const sessionSelect = document.getElementById('session-list');
+    const loadSessionBtn = document.getElementById('load-session');
+    
+    loadSessionBtn.disabled = !sessionSelect.value;
+}
+
+// Load automations
+async function loadAutomations() {
+    try {
+        automations = await window.go.ui.App.GetAutomations();
+        
+        const automationSelect = document.getElementById('automation-list');
+        automationSelect.innerHTML = '<option value="">Select an automation</option>';
+        
+        automations.forEach(automation => {
+            const option = document.createElement('option');
+            option.value = automation.id;
+            option.textContent = `${automation.name} - ${automation.description}`;
+            automationSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Failed to load automations:', error);
+    }
+}
+
+// Save current automation
+async function saveCurrentAutomation() {
+    if (conversationHistory.length === 0) {
+        alert('No conversation to save as automation');
+        return;
+    }
+    
+    const automationName = prompt('Enter automation name:');
+    if (!automationName) return;
+    
+    const description = prompt('Enter automation description:') || '';
+    
+    try {
+        const automation = {
+            name: automationName,
+            description: description,
+            task: conversationHistory.length > 0 ? conversationHistory[0].content : '',
+            category: 'General',
+            tags: ['manual'],
+            llm_provider: selectedProvider,
+            llm_model: selectedModel,
+            conversation_history: conversationHistory,
+            created_at: new Date().toISOString(),
+            execution_count: 0,
+            success_count: 0,
+            failure_count: 0
+        };
+        
+        await window.go.ui.App.SaveAutomation(automation);
+        await loadAutomations();
+        
+        appendChatMessage('system', `Automation "${automationName}" saved successfully`);
+    } catch (error) {
+        console.error('Failed to save automation:', error);
+        appendChatMessage('system', `Failed to save automation: ${error.message}`);
+    }
+}
+
+// Run selected automation
+async function runSelectedAutomation() {
+    const automationSelect = document.getElementById('automation-list');
+    const automationId = automationSelect.value;
+    
+    if (!automationId) {
+        alert('Please select an automation to run');
+        return;
+    }
+    
+    try {
+        setExecuting(true);
+        await window.go.ui.App.ExecuteAutomation(automationId, {});
+        appendChatMessage('system', `Running automation...`);
+    } catch (error) {
+        console.error('Failed to run automation:', error);
+        appendChatMessage('system', `Failed to run automation: ${error.message}`);
+        setExecuting(false);
+    }
+}
+
+// Automation select change handler
+function onAutomationSelectChange() {
+    const automationSelect = document.getElementById('automation-list');
+    const runAutomationBtn = document.getElementById('run-automation');
+    
+    runAutomationBtn.disabled = !automationSelect.value;
 }
 
 // Provider change handler
@@ -146,8 +342,9 @@ async function sendChatMessage() {
     const message = chatInput.value.trim();
     if (!message || !selectedProvider || !selectedModel) return;
     
-    // Add user message to chat
+    // Add user message to chat and conversation history
     appendChatMessage('user', message);
+    conversationHistory.push({ role: 'user', content: message });
     chatInput.value = '';
     
     // Update UI state
@@ -212,6 +409,7 @@ async function stopExecution() {
 function handleBackendMessage(data) {
     if (data.type === 'chat_response') {
         appendChatMessage('assistant', data.content);
+        conversationHistory.push({ role: 'assistant', content: data.content });
     } else if (data.type === 'chat_progress') {
         // Show progress in chat
         updateLastMessage(data.content);
