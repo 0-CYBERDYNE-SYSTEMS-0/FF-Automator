@@ -28,5 +28,9 @@
   "bindings": {
     "generate": true,
     "tags": ""
+  },
+  "build": {
+    "dir": ".",
+    "main": "app.go"
   }
 }

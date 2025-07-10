@@ -40,6 +40,6 @@ dist/
 *.log
 
 # Wails generated files
-app.go
+wails_bindings/
 frontend/dist/
 frontend/node_modules/

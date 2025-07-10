@@ -25,7 +25,8 @@ type PythonManager struct {
 
 func NewPythonManager() *PythonManager {
 	// Get project root (parent of go-ui directory)
-	projectRoot := filepath.Join(filepath.Dir(os.Args[0]), "..", "..", "..")
+	wd, _ := os.Getwd()
+	projectRoot := filepath.Join(wd, "..")
 	
 	return &PythonManager{
 		projectRoot: projectRoot,
