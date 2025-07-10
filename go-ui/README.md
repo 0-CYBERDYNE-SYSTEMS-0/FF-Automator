@@ -24,7 +24,15 @@ A native macOS desktop application for macOS-use, built with Go and Wails. This 
 ### Install Wails
 
 ```bash
+# Option 1: Use the install script (recommended)
+./install.sh
+
+# Option 2: Manual installation
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+# If 'wails' command not found, add Go bin to PATH:
+export PATH="$HOME/go/bin:$PATH"
+# Add to your shell profile (~/.zshrc or ~/.bash_profile) for persistence
 ```
 
 ### Build the Application

@@ -8,6 +8,20 @@ echo "🔧 Building macOS-use Native UI..."
 if ! command -v wails &> /dev/null; then
     echo "❌ Wails not found. Installing..."
     go install github.com/wailsapp/wails/v2/cmd/wails@latest
+    
+    # Add Go bin to PATH if not already there
+    if [[ ":$PATH:" != *":$HOME/go/bin:"* ]]; then
+        export PATH="$HOME/go/bin:$PATH"
+        echo "✅ Added Go bin to PATH for this session"
+    fi
+    
+    # Check again after installation
+    if ! command -v wails &> /dev/null; then
+        echo "❌ Wails installation failed. Please ensure Go is properly installed and try:"
+        echo "  export PATH=\"\$HOME/go/bin:\$PATH\""
+        echo "  go install github.com/wailsapp/wails/v2/cmd/wails@latest"
+        exit 1
+    fi
 fi
 
 # Check Python backend

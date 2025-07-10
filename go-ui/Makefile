@@ -11,7 +11,10 @@ setup:
 	go install github.com/wailsapp/wails/v2/cmd/wails@latest
 	@echo "Installing dependencies..."
 	$(MAKE) install
+	@echo ""
 	@echo "Setup complete!"
+	@echo "If 'wails' command not found, run:"
+	@echo "  export PATH=\"\$$HOME/go/bin:\$$PATH\""
 
 # Run in development mode with hot reload
 dev:

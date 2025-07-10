@@ -97,6 +97,7 @@ For a better experience without browser conflicts, use our native Go-based deskt
 
 ```bash
 cd go-ui
+./install.sh    # First time setup (installs Wails CLI)
 ./build.sh dev  # For development
 ./build.sh prod # For production .app bundle
 ```
