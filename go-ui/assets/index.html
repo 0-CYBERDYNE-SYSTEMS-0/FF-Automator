@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>macOS-use</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <div class="sidebar">
+            <div class="logo">
+                <h1>macOS-use</h1>
+                <p class="tagline">Natural language control for macOS</p>
+            </div>
+            
+            <div class="provider-selector">
+                <label for="provider">Provider:</label>
+                <select id="provider">
+                    <option value="">Loading...</option>
+                </select>
+                
+                <label for="model">Model:</label>
+                <select id="model">
+                    <option value="">Select provider first</option>
+                </select>
+            </div>
+            
+            <div class="mode-selector">
+                <button class="mode-btn active" data-mode="chat">💬 Chat Mode</button>
+                <button class="mode-btn" data-mode="agent">🤖 Agent Mode</button>
+            </div>
+            
+            <div class="session-controls">
+                <h3>Sessions</h3>
+                <button id="save-session" class="btn-secondary">💾 Save Session</button>
+                <select id="session-list">
+                    <option value="">No saved sessions</option>
+                </select>
+                <button id="load-session" class="btn-secondary">📂 Load Session</button>
+            </div>
+            
+            <div class="status-indicator">
+                <div class="status-dot" id="connection-status"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div id="chat-view" class="view active">
+                <div class="chat-container">
+                    <div id="chat-messages" class="messages"></div>
+                    <div class="input-area">
+                        <textarea id="chat-input" placeholder="Type your message..." rows="3"></textarea>
+                        <button id="send-btn" class="btn-primary">Send</button>
+                        <button id="stop-btn" class="btn-danger" style="display: none;">Stop</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="agent-view" class="view">
+                <div class="terminal-container">
+                    <div id="terminal-output" class="terminal"></div>
+                    <div class="input-area">
+                        <input type="text" id="agent-input" placeholder="Enter task...">
+                        <button id="execute-btn" class="btn-primary">Execute</button>
+                        <button id="stop-agent-btn" class="btn-danger" style="display: none;">Stop</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="log-panel" class="log-panel">
+                <div class="log-header">
+                    <h3>Backend Logs</h3>
+                    <button id="toggle-logs" class="btn-small">▼</button>
+                </div>
+                <div id="log-content" class="log-content"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/wails/runtime.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

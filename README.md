@@ -91,6 +91,24 @@ Try prompting it with complex requests like:
 "Check my system information and create an email draft with the details"
 ```
 
+## 🖥️ Native macOS Application (New!)
+
+For a better experience without browser conflicts, use our native Go-based desktop application:
+
+```bash
+cd go-ui
+./build.sh dev  # For development
+./build.sh prod # For production .app bundle
+```
+
+### Native App Benefits:
+- **No Browser Conflicts**: Won't interfere with browser automation
+- **System Integration**: Native macOS menu bar and dock integration
+- **Better Performance**: Direct system access without browser overhead
+- **Standalone**: Runs independently without browser dependencies
+
+See [go-ui/README.md](go-ui/README.md) for detailed setup instructions.
+
 # Demos
 
 <h3> Click the GIF for the full video! </h3>

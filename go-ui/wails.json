@@ -1,0 +1,32 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "macOS-use",
+  "outputfilename": "macOS-use",
+  "frontend": {
+    "dir": "assets",
+    "install": "",
+    "build": "",
+    "dev": ""
+  },
+  "author": {
+    "name": "macOS-use Contributors",
+    "email": ""
+  },
+  "info": {
+    "companyName": "macOS-use",
+    "productName": "macOS-use",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright 2025",
+    "comments": "Natural language control for macOS"
+  },
+  "debounceMS": 100,
+  "devServer": "localhost:34115",
+  "appargs": "",
+  "runNonNativeBuildHooks": false,
+  "preBuildHooks": {},
+  "postBuildHooks": {},
+  "bindings": {
+    "generate": true,
+    "tags": ""
+  }
+}
