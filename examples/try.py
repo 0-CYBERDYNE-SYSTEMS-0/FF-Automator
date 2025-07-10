@@ -13,22 +13,24 @@ import asyncio
 from mlx_use import Agent
 from pydantic import SecretStr
 from mlx_use.controller.service import Controller
+from mlx_use.agent.context_manager import create_agent_with_context
 
 
-def set_llm(llm_provider:str = None):
+def set_llm(llm_provider: str = None):
 	if not llm_provider:
-		raise ValueError("No llm provider was set")
-	
-	if llm_provider == "OAI" and os.getenv('OPENAI_API_KEY'):
+		raise ValueError('No llm provider was set')
+
+	if llm_provider == 'OAI' and os.getenv('OPENAI_API_KEY'):
 		return ChatOpenAI(model='gpt-4', api_key=SecretStr(os.getenv('OPENAI_API_KEY')))
-	
-	if llm_provider == "google" and os.getenv('GEMINI_API_KEY'):
+
+	if llm_provider == 'google' and os.getenv('GEMINI_API_KEY'):
 		return ChatGoogleGenerativeAI(model='gemini-2.0-flash-exp', api_key=SecretStr(os.getenv('GEMINI_API_KEY')))
-	
-	if llm_provider == "anthropic" and os.getenv('ANTHROPIC_API_KEY'):
+
+	if llm_provider == 'anthropic' and os.getenv('ANTHROPIC_API_KEY'):
 		return ChatAnthropic(model='claude-3-sonnet-20240229', api_key=SecretStr(os.getenv('ANTHROPIC_API_KEY')))
-	
+
 	return None
+
 
 # Try to set LLM based on available API keys
 llm = None
@@ -40,34 +42,37 @@ elif os.getenv('ANTHROPIC_API_KEY'):
 	llm = set_llm('anthropic')
 
 if not llm:
-	raise ValueError("No API keys found. Please set at least one of GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY in your .env file")
+	raise ValueError(
+		'No API keys found. Please set at least one of GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY in your .env file'
+	)
 
 controller = Controller()
 
 
 async def main():
-
-	agent_greeting = Agent(
+	agent_greeting = await create_agent_with_context(
 		task='Say "Hi there $whoami,  What can I do for you today?"',
 		llm=llm,
+		session_id='interactive_session',
 		controller=controller,
 		use_vision=False,
 		max_actions_per_step=1,
-		max_failures=5
+		max_failures=5,
 	)
-  
+
 	await agent_greeting.run(max_steps=25)
-	task = input("Enter the task: ")
-  
-	agent_task = Agent(
+	task = input('Enter the task: ')
+
+	agent_task = await create_agent_with_context(
 		task=task,
 		llm=llm,
+		session_id='interactive_session',
 		controller=controller,
 		use_vision=False,
 		max_actions_per_step=4,
-		max_failures=5
+		max_failures=5,
 	)
-	
+
 	await agent_task.run(max_steps=25)
 
 

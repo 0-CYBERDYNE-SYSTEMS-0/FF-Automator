@@ -295,6 +295,31 @@
 									<textarea id="agent-custom-system" class="form-control" placeholder="Enter custom instructions for the agent..." rows="4"></textarea>
 								</div>
 
+								<!-- Context Bucket Section -->
+								<div class="form-group context-bucket-section">
+									<label for="agent-context-session">
+										Context Bucket
+										<i class="fas fa-question-circle help-icon" title="Manage persistent context information that will be available to the agent across sessions"></i>
+									</label>
+									<div class="context-bucket-controls">
+										<div class="form-row">
+											<div class="form-col">
+												<input type="text" id="agent-context-session" class="form-control" value="agent_session" placeholder="Session ID for context">
+											</div>
+											<div class="form-col">
+												<button id="manage-agent-context-btn" class="btn btn-secondary">
+													<i class="fas fa-cog"></i>
+													Manage Context
+												</button>
+											</div>
+										</div>
+										<div class="context-summary" id="agent-context-summary">
+											<span class="context-count">0 context items</span>
+											<span class="context-tokens">0 tokens</span>
+										</div>
+									</div>
+								</div>
+
 								<div class="form-actions">
 									<button id="run-agent-btn" class="btn btn-primary btn-lg">
 										<i class="fas fa-play"></i>

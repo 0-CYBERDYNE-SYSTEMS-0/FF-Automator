@@ -2090,6 +2090,7 @@ async def handle_agent_task(task_data: dict, client_id: str):
 		llm_model = task_data.get("llm_model", "gpt-4")
 		api_key = task_data.get("api_key")
 		custom_system_message = task_data.get("custom_system_message")
+		context_session_id = task_data.get("context_session_id", "default")
 		
 		# Save API key if provided
 		if api_key:
@@ -2106,17 +2107,18 @@ async def handle_agent_task(task_data: dict, client_id: str):
 		# Get LLM instance
 		llm = get_llm(llm_provider, llm_model, api_key)
 		
-		# Get or create context bucket for client
-		if client_id not in manager.context_buckets:
+		# Get or create context bucket for session
+		session_key = f"{client_id}_{context_session_id}"
+		if session_key not in manager.context_buckets:
 			context_config = ContextBucketConfig(
 				max_tokens=8000,
-				storage_path=str(web_app.sessions_dir / "context_buckets" / client_id) if web_app else None
+				storage_path=str(web_app.sessions_dir / "context_buckets" / context_session_id) if web_app else None
 			)
-			manager.context_buckets[client_id] = ContextBucket(context_config)
+			manager.context_buckets[session_key] = ContextBucket(context_config)
 			if context_config.storage_path:
-				await manager.context_buckets[client_id].load_state()
+				await manager.context_buckets[session_key].load_state()
 		
-		context_bucket = manager.context_buckets[client_id]
+		context_bucket = manager.context_buckets[session_key]
 		
 		# Choose system prompt class based on whether custom message is provided
 		if custom_system_message:

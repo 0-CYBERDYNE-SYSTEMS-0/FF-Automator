@@ -109,13 +109,13 @@ class AgentFactory:
 		)
 		
 		# Create controller if not provided
-		controller = kwargs.get('controller', Controller())
+		if 'controller' not in kwargs:
+			kwargs['controller'] = Controller()
 		
 		# Create agent with context bucket
 		agent = Agent(
 			task=task,
 			llm=llm,
-			controller=controller,
 			max_actions_per_step=max_actions_per_step,
 			system_prompt_class=system_prompt_class,
 			system_prompt_kwargs={'context_bucket': context_bucket},

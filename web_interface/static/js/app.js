@@ -150,16 +150,23 @@ class FFTerminalApp {
 		const refineBtn = document.getElementById('refine-task-btn');
 		const clearTerminalBtn = document.getElementById('clear-terminal-btn');
 		const saveAgentBtn = document.getElementById('save-agent-automation-btn');
+		const manageContextBtn = document.getElementById('manage-agent-context-btn');
 
 		runBtn.addEventListener('click', () => this.runAgent());
 		stopBtn.addEventListener('click', () => this.stopAgent());
 		refineBtn.addEventListener('click', () => this.refineTask());
 		clearTerminalBtn.addEventListener('click', () => this.clearTerminal());
 		saveAgentBtn.addEventListener('click', () => this.saveAgentAsAutomation());
+		manageContextBtn.addEventListener('click', () => this.openAgentContextModal());
 
 		// Provider changes
 		document.getElementById('agent-provider').addEventListener('change', (e) => {
 			this.updateAgentModels(e.target.value);
+		});
+		
+		// Context session changes
+		document.getElementById('agent-context-session').addEventListener('input', () => {
+			this.updateAgentContextSummary();
 		});
 	}
 
@@ -757,8 +764,9 @@ class FFTerminalApp {
 		this.isAgentRunning = true;
 		this.updateAgentUI(true);
 
-		// Get custom system message
+		// Get custom system message and context session
 		const customSystemMessage = document.getElementById('agent-custom-system').value.trim();
+		const contextSessionId = document.getElementById('agent-context-session').value.trim() || 'agent_session';
 
 		// Send task via WebSocket
 		if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -771,7 +779,8 @@ class FFTerminalApp {
 					llm_provider: provider,
 					llm_model: model,
 					api_key: apiKey,
-					custom_system_message: customSystemMessage
+					custom_system_message: customSystemMessage,
+					context_session_id: contextSessionId
 				}
 			}));
 		} else {
@@ -1412,6 +1421,8 @@ Only return the refined prompt text, nothing else.`;
 			const tags = document.getElementById('agent-automation-tags').value;
 
 			if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+				const contextSessionId = document.getElementById('agent-context-session').value || 'agent_session';
+				
 				this.socket.send(JSON.stringify({
 					type: 'save_automation',
 					data: {
@@ -1423,6 +1434,7 @@ Only return the refined prompt text, nothing else.`;
 						custom_system_message: this.currentAgentExecution.custom_system,
 						llm_provider: this.currentAgentExecution.provider,
 						llm_model: this.currentAgentExecution.model,
+						context_session_id: contextSessionId,
 						execution_data: this.currentAgentExecution
 					}
 				}));
@@ -2048,6 +2060,54 @@ Only return the refined prompt text, nothing else.`;
 			progressBar.classList.add('danger');
 		} else if (percentage > 70) {
 			progressBar.classList.add('warning');
+		}
+	}
+
+	openAgentContextModal() {
+		// Set the current session ID for agent context
+		const sessionId = document.getElementById('agent-context-session').value || 'agent_session';
+		this.currentContextSession = sessionId;
+		
+		// Load context items for this session
+		this.loadContextItems();
+		
+		// Show the context bucket sidebar
+		const contextBucket = document.getElementById('context-bucket');
+		contextBucket.classList.remove('hidden');
+		
+		// Update session ID display in sidebar
+		const sessionDisplay = document.getElementById('context-session-id');
+		if (sessionDisplay) {
+			sessionDisplay.textContent = sessionId;
+		}
+		
+		this.showToast(`Managing context for session: ${sessionId}`, 'info');
+		
+		// Update context summary
+		this.updateAgentContextSummary();
+	}
+
+	async updateAgentContextSummary() {
+		const sessionId = document.getElementById('agent-context-session').value || 'agent_session';
+		
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/summary`);
+			const data = await response.json();
+			
+			if (data.success) {
+				const summary = data.summary;
+				const countElement = document.querySelector('#agent-context-summary .context-count');
+				const tokensElement = document.querySelector('#agent-context-summary .context-tokens');
+				
+				if (countElement) {
+					countElement.textContent = `${summary.total_items} context items`;
+				}
+				if (tokensElement) {
+					tokensElement.textContent = `${summary.total_tokens} tokens`;
+				}
+			}
+		} catch (error) {
+			console.error('Failed to update agent context summary:', error);
 		}
 	}
 
