@@ -4,18 +4,40 @@ import {ui} from '../models';
 import {context} from '../models';
 import {backend} from '../models';
 
+export function CreateAutomationFromTemplate(arg1:string,arg2:Record<string, any>):Promise<void>;
+
+export function DeleteAutomation(arg1:string):Promise<void>;
+
+export function DeleteSession(arg1:string):Promise<void>;
+
+export function ExecuteAutomation(arg1:string,arg2:Record<string, any>):Promise<void>;
+
+export function GetAutomation(arg1:string):Promise<ui.Automation>;
+
+export function GetAutomationCategories():Promise<Array<string>>;
+
+export function GetAutomationTags():Promise<Array<string>>;
+
+export function GetAutomationTemplates():Promise<Array<ui.AutomationTemplate>>;
+
+export function GetAutomations():Promise<Array<ui.Automation>>;
+
 export function GetProviders():Promise<Array<ui.Provider>>;
 
-export function GetSessions():Promise<Array<string>>;
+export function GetSessions():Promise<Array<ui.Session>>;
 
-export function LoadSession(arg1:string):Promise<void>;
+export function LoadSession(arg1:string):Promise<ui.Session>;
 
 export function OnShutdown(arg1:context.Context):Promise<void>;
 
 export function OnStartup(arg1:context.Context,arg2:backend.PythonManager):Promise<void>;
 
-export function SaveSession(arg1:string):Promise<void>;
+export function SaveAutomation(arg1:ui.Automation):Promise<void>;
+
+export function SaveSession(arg1:ui.Session):Promise<void>;
 
 export function SendTask(arg1:ui.TaskRequest):Promise<void>;
 
 export function StopTask():Promise<void>;
+
+export function TestProvider(arg1:string):Promise<void>;

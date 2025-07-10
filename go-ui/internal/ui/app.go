@@ -1,13 +1,14 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
-	"io"
-	"bytes"
+	"time"
 
 	"github.com/macOS-use/go-ui/internal/backend"
 	"github.com/macOS-use/go-ui/internal/websocket"
@@ -40,11 +41,11 @@ type TaskRequest struct {
 }
 
 type Session struct {
-	Name            string    `json:"name"`
-	Timestamp       string    `json:"timestamp"`
-	MessageCount    int       `json:"message_count"`
-	SuccessCount    int       `json:"success_count"`
-	FailureCount    int       `json:"failure_count"`
+	Name                string        `json:"name"`
+	Timestamp           string        `json:"timestamp"`
+	MessageCount        int           `json:"message_count"`
+	SuccessCount        int           `json:"success_count"`
+	FailureCount        int           `json:"failure_count"`
 	ConversationHistory []ChatMessage `json:"conversation_history"`
 }
 
@@ -96,10 +97,34 @@ func (a *App) OnStartup(ctx context.Context, pythonManager *backend.PythonManage
 	// Connect to WebSocket
 	if err := a.wsClient.Connect(); err != nil {
 		log.Printf("Failed to connect to WebSocket: %v", err)
+		runtime.EventsEmit(a.ctx, "connection-error", err.Error())
+	} else {
+		runtime.EventsEmit(a.ctx, "connection-success", "WebSocket connected")
 	}
 	
 	// Start forwarding Python logs to frontend
 	go a.forwardLogs()
+	
+	// Start heartbeat to keep connection alive
+	go a.startHeartbeat()
+}
+
+// startHeartbeat sends periodic ping messages to keep WebSocket alive
+func (a *App) startHeartbeat() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	
+	for {
+		select {
+		case <-ticker.C:
+			if a.wsClient != nil && a.wsClient.IsConnected() {
+				pingMsg := map[string]string{"type": "ping"}
+				if message, err := json.Marshal(pingMsg); err == nil {
+					a.wsClient.Send(message)
+				}
+			}
+		}
+	}
 }
 
 func (a *App) OnShutdown(ctx context.Context) {
@@ -134,7 +159,36 @@ func (a *App) SendTask(request TaskRequest) error {
 		return fmt.Errorf("not connected to backend")
 	}
 	
-	message, err := json.Marshal(request)
+	// Format message according to Python backend protocol
+	var wsMessage map[string]interface{}
+	
+	if request.Type == "chat" {
+		wsMessage = map[string]interface{}{
+			"type": "chat_message",
+			"data": map[string]interface{}{
+				"message":               request.Message,
+				"llm_provider":         request.Provider,
+				"llm_model":            request.Model,
+				"custom_system_message": request.CustomSystemMessage,
+			},
+		}
+	} else if request.Type == "agent" {
+		wsMessage = map[string]interface{}{
+			"type": "agent_task",
+			"data": map[string]interface{}{
+				"task":                 request.Message,
+				"max_steps":            100,
+				"max_actions":          10,
+				"llm_provider":         request.Provider,
+				"llm_model":            request.Model,
+				"custom_system_message": request.CustomSystemMessage,
+			},
+		}
+	} else {
+		return fmt.Errorf("unsupported task type: %s", request.Type)
+	}
+	
+	message, err := json.Marshal(wsMessage)
 	if err != nil {
 		return err
 	}
@@ -144,7 +198,7 @@ func (a *App) SendTask(request TaskRequest) error {
 
 // StopTask interrupts the current task
 func (a *App) StopTask() error {
-	stopMsg := map[string]string{"type": "stop"}
+	stopMsg := map[string]string{"type": "stop_chat"}
 	message, err := json.Marshal(stopMsg)
 	if err != nil {
 		return err

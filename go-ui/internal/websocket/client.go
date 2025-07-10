@@ -49,8 +49,8 @@ func (c *Client) Connect() error {
 		u.Scheme = "wss"
 	}
 	
-	// Add WebSocket path with client ID
-	u.Path = "/ws/go-ui-client"
+	// Add WebSocket path with client ID (matches Python backend format)
+	u.Path = "/ws/go-ui-client-" + fmt.Sprintf("%d", time.Now().Unix())
 	
 	// Connect to WebSocket
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -65,7 +65,7 @@ func (c *Client) Connect() error {
 	// Start read loop
 	go c.readLoop()
 	
-	// Start reconnect loop
+	// Start reconnect monitoring
 	go c.reconnectLoop()
 	
 	log.Printf("Connected to WebSocket at %s", u.String())
@@ -138,7 +138,7 @@ func (c *Client) reconnectLoop() {
 		case <-time.After(delay):
 			if !c.IsConnected() {
 				log.Println("Attempting to reconnect...")
-				if err := c.Connect(); err != nil {
+				if err := c.attemptReconnect(); err != nil {
 					log.Printf("Reconnect failed: %v", err)
 					
 					// Exponential backoff
@@ -153,4 +153,38 @@ func (c *Client) reconnectLoop() {
 			}
 		}
 	}
+}
+
+func (c *Client) attemptReconnect() error {
+	// Parse WebSocket URL
+	u, err := url.Parse(c.baseURL)
+	if err != nil {
+		return err
+	}
+	
+	// Change scheme to ws
+	if u.Scheme == "http" {
+		u.Scheme = "ws"
+	} else if u.Scheme == "https" {
+		u.Scheme = "wss"
+	}
+	
+	// Add WebSocket path with client ID
+	u.Path = "/ws/go-ui-client-" + fmt.Sprintf("%d", time.Now().Unix())
+	
+	// Connect to WebSocket
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		return fmt.Errorf("failed to reconnect to WebSocket: %v", err)
+	}
+	
+	c.mu.Lock()
+	c.conn = conn
+	c.mu.Unlock()
+	
+	// Start read loop
+	go c.readLoop()
+	
+	log.Printf("Reconnected to WebSocket at %s", u.String())
+	return nil
 }

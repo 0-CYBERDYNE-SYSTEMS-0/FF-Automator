@@ -103,6 +103,18 @@ function setupWailsEvents() {
     window.runtime.EventsOn('backend-log', (log) => {
         appendLog(log);
     });
+    
+    // Connection status events
+    window.runtime.EventsOn('connection-success', (message) => {
+        updateConnectionStatus('connected');
+        console.log('WebSocket connected:', message);
+    });
+    
+    window.runtime.EventsOn('connection-error', (error) => {
+        updateConnectionStatus('error');
+        console.error('WebSocket connection error:', error);
+        appendChatMessage('system', `Connection error: ${error}`);
+    });
 }
 
 // Load providers
@@ -121,9 +133,11 @@ async function loadProviders() {
         });
         
         updateConnectionStatus('connected');
+        updateUIState(); // Set initial button state
     } catch (error) {
         console.error('Failed to load providers:', error);
         updateConnectionStatus('error');
+        updateUIState(); // Set initial button state even on error
     }
 }
 
@@ -302,6 +316,7 @@ function onAutomationSelectChange() {
 function onProviderChange() {
     const providerName = providerSelect.value;
     selectedProvider = providerName;
+    selectedModel = null; // Reset model selection
     
     modelSelect.innerHTML = '<option value="">Select a model</option>';
     
@@ -316,11 +331,32 @@ function onProviderChange() {
             });
         }
     }
+    
+    updateUIState();
 }
 
 // Model change handler
 function onModelChange() {
     selectedModel = modelSelect.value;
+    updateUIState();
+}
+
+// Update UI state based on selection
+function updateUIState() {
+    const hasSelection = selectedProvider && selectedModel;
+    
+    // Enable/disable send buttons based on selection
+    sendBtn.disabled = !hasSelection;
+    executeBtn.disabled = !hasSelection;
+    
+    // Update button text to provide feedback
+    if (!hasSelection) {
+        sendBtn.textContent = 'Select Provider & Model';
+        executeBtn.textContent = 'Select Provider & Model';
+    } else {
+        sendBtn.textContent = 'Send';
+        executeBtn.textContent = 'Execute';
+    }
 }
 
 // Switch mode
@@ -340,7 +376,21 @@ function switchMode(mode) {
 // Send chat message
 async function sendChatMessage() {
     const message = chatInput.value.trim();
-    if (!message || !selectedProvider || !selectedModel) return;
+    
+    if (!message) {
+        appendChatMessage('system', 'Please enter a message');
+        return;
+    }
+    
+    if (!selectedProvider) {
+        appendChatMessage('system', 'Please select a provider first');
+        return;
+    }
+    
+    if (!selectedModel) {
+        appendChatMessage('system', 'Please select a model first');
+        return;
+    }
     
     // Add user message to chat and conversation history
     appendChatMessage('user', message);
@@ -355,10 +405,11 @@ async function sendChatMessage() {
             type: 'chat',
             message: message,
             provider: selectedProvider,
-            model: selectedModel
+            model: selectedModel,
+            custom_system_message: ''
         });
     } catch (error) {
-        appendChatMessage('system', `Error: ${error.message}`);
+        appendChatMessage('system', `Error: ${error.message || error}`);
         setExecuting(false);
     }
 }
@@ -366,7 +417,21 @@ async function sendChatMessage() {
 // Execute agent task
 async function executeAgent() {
     const task = agentInput.value.trim();
-    if (!task || !selectedProvider || !selectedModel) return;
+    
+    if (!task) {
+        appendTerminalLine('Please enter a task');
+        return;
+    }
+    
+    if (!selectedProvider) {
+        appendTerminalLine('Please select a provider first');
+        return;
+    }
+    
+    if (!selectedModel) {
+        appendTerminalLine('Please select a model first');
+        return;
+    }
     
     // Clear terminal and add task
     terminalOutput.innerHTML = '';
@@ -381,10 +446,11 @@ async function executeAgent() {
             type: 'agent',
             message: task,
             provider: selectedProvider,
-            model: selectedModel
+            model: selectedModel,
+            custom_system_message: ''
         });
     } catch (error) {
-        appendTerminalLine(`Error: ${error.message}`);
+        appendTerminalLine(`Error: ${error.message || error}`);
         setExecuting(false);
     }
 }
@@ -407,23 +473,67 @@ async function stopExecution() {
 
 // Handle backend messages
 function handleBackendMessage(data) {
+    // Handle messages according to Python backend protocol
     if (data.type === 'chat_response') {
-        appendChatMessage('assistant', data.content);
-        conversationHistory.push({ role: 'assistant', content: data.content });
-    } else if (data.type === 'chat_progress') {
-        // Show progress in chat
-        updateLastMessage(data.content);
-    } else if (data.type === 'agent_output') {
-        appendTerminalLine(data.content);
-    } else if (data.type === 'task_complete') {
-        setExecuting(false);
-    } else if (data.type === 'error') {
-        if (currentMode === 'chat') {
-            appendChatMessage('system', `Error: ${data.content}`);
-        } else {
-            appendTerminalLine(`Error: ${data.content}`);
+        if (data.data.content) {
+            if (data.data.streaming) {
+                // Update the last message with streaming content
+                updateLastMessage(data.data.content);
+            } else {
+                // Add complete response
+                appendChatMessage('assistant', data.data.content);
+                conversationHistory.push({ role: 'assistant', content: data.data.content });
+            }
         }
+    } else if (data.type === 'chat_stream_update') {
+        // Show progress updates
+        if (data.data.message) {
+            appendChatMessage('system', `Step ${data.data.step || 1}: ${data.data.message}`);
+        }
+    } else if (data.type === 'chat_complete') {
         setExecuting(false);
+        if (data.data.final_result) {
+            appendChatMessage('assistant', data.data.final_result);
+            conversationHistory.push({ role: 'assistant', content: data.data.final_result });
+        }
+        if (data.data.message) {
+            appendChatMessage('system', `Completed: ${data.data.message}`);
+        }
+    } else if (data.type === 'stream_update') {
+        // Agent mode updates
+        if (data.data.message) {
+            appendTerminalLine(`Step ${data.data.step || 1}: ${data.data.message}`);
+        }
+        if (data.data.status === 'completed' || data.data.status === 'failed') {
+            setExecuting(false);
+            if (data.data.final_result) {
+                appendTerminalLine(`Result: ${data.data.final_result}`);
+            }
+        }
+    } else if (data.type === 'chat_error') {
+        setExecuting(false);
+        if (currentMode === 'chat') {
+            appendChatMessage('system', `Error: ${data.data.message}`);
+        } else {
+            appendTerminalLine(`Error: ${data.data.message}`);
+        }
+    } else if (data.type === 'automation_save_result') {
+        if (data.data.success) {
+            appendChatMessage('system', `Automation saved: ${data.data.message}`);
+            loadAutomations(); // Refresh automation list
+        } else {
+            appendChatMessage('system', `Failed to save automation: ${data.data.message}`);
+        }
+    } else if (data.type === 'automation_execute_result') {
+        setExecuting(false);
+        if (data.data.success) {
+            appendChatMessage('system', `Automation completed: ${data.data.message}`);
+        } else {
+            appendChatMessage('system', `Automation failed: ${data.data.message}`);
+        }
+    } else if (data.type === 'pong') {
+        // Heartbeat response - connection is alive
+        console.log('Received pong from backend');
     }
 }
 

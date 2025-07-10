@@ -110,6 +110,8 @@ func (pm *PythonManager) WaitForReady(ctx context.Context) error {
 	
 	timeout := time.After(30 * time.Second)
 	
+	log.Println("Waiting for Python backend to be ready...")
+	
 	for {
 		select {
 		case <-ctx.Done():
@@ -117,6 +119,13 @@ func (pm *PythonManager) WaitForReady(ctx context.Context) error {
 		case <-timeout:
 			return fmt.Errorf("timeout waiting for backend to start")
 		case <-ticker.C:
+			// Check if process is still running
+			if pm.cmd != nil && pm.cmd.Process != nil {
+				if processState := pm.cmd.ProcessState; processState != nil && processState.Exited() {
+					return fmt.Errorf("python backend process exited unexpectedly")
+				}
+			}
+			
 			resp, err := client.Get(pm.backendURL + "/api/providers")
 			if err == nil {
 				resp.Body.Close()
@@ -125,6 +134,9 @@ func (pm *PythonManager) WaitForReady(ctx context.Context) error {
 					return nil
 				}
 			}
+			
+			// Log the attempt
+			log.Printf("Waiting for backend... (checking %s)", pm.backendURL)
 		}
 	}
 }
