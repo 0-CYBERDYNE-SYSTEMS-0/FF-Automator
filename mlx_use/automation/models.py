@@ -86,6 +86,7 @@ class SavedAutomation(BaseModel):
 	description: Optional[str] = Field(None, description="Description of what the automation does")
 	
 	# Core workflow
+	task: str = Field(description="Task description for the automation")
 	steps: List[AutomationStep] = Field(default_factory=list, description="Steps in the automation")
 	variables: List[AutomationVariable] = Field(default_factory=list, description="Variables used in the automation")
 	
@@ -107,6 +108,9 @@ class SavedAutomation(BaseModel):
 	original_task: Optional[str] = Field(None, description="Original task description")
 	original_conversation: Optional[List[Dict]] = Field(None, description="Original conversation history")
 	agent_parameters: Dict[str, Any] = Field(default_factory=dict, description="Original agent parameters")
+	
+	# Additional metadata for storing execution data
+	execution_metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional execution metadata")
 	
 	def save_to_file(self, file_path: Union[str, Path]) -> None:
 		"""Save automation to JSON file"""
@@ -134,7 +138,7 @@ class SavedAutomation(BaseModel):
 	def to_agent_params(self) -> Dict[str, Any]:
 		"""Convert automation to agent parameters"""
 		return {
-			"task": self.original_task or self.name,
+			"task": self.task or self.original_task or self.name,
 			"max_steps": self.max_steps,
 			"max_actions_per_step": self.max_actions_per_step,
 			"system_prompt_kwargs": {"custom_message": self.system_prompt} if self.system_prompt else {},

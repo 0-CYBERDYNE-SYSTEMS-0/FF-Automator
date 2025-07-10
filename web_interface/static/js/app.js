@@ -19,6 +19,8 @@ class FFTerminalApp {
 		this.savedAutomations = [];
 		this.scheduledAutomations = [];
 		this.currentAgentExecution = null; // Track current agent execution for saving
+		this.lastChatExecution = null; // Track last chat execution for automation saving
+		this.currentChatExecution = null; // Track current chat execution
 		
 		this.init();
 	}
@@ -539,7 +541,28 @@ class FFTerminalApp {
 
 	handleChatStreamUpdate(data) {
 		// Handle multi-step chat execution updates
-		const { status, message, step, max_steps, queue_status, current_task } = data;
+		const { status, message, step, max_steps, queue_status, current_task, actions_taken } = data;
+
+		// Track execution data for potential automation saving
+		if (!this.currentChatExecution) {
+			this.currentChatExecution = {
+				steps: [],
+				actions_taken: []
+			};
+		}
+
+		// Track steps and actions
+		if (message) {
+			this.currentChatExecution.steps.push({
+				step: step,
+				message: message,
+				status: status,
+				timestamp: new Date().toISOString()
+			});
+		}
+		if (actions_taken) {
+			this.currentChatExecution.actions_taken.push(actions_taken);
+		}
 
 		// Update or create typing indicator based on status
 		if (status === 'starting') {
@@ -615,6 +638,24 @@ class FFTerminalApp {
 			timestamp: new Date().toISOString(),
 			success: data.success
 		});
+
+		// Store execution data if successful for automation saving
+		if (data.success) {
+			this.lastChatExecution = {
+				task: this.conversationHistory[this.conversationHistory.length - 2]?.content || '',
+				response: data.response,
+				steps: this.currentChatExecution?.steps || [],
+				actions_taken: this.currentChatExecution?.actions_taken || [],
+				provider: document.getElementById('chat-provider').value,
+				model: document.getElementById('chat-model').value,
+				custom_system_message: document.getElementById('chat-custom-system').value,
+				completed_at: new Date().toISOString(),
+				execution_data: data.execution_data
+			};
+		}
+
+		// Reset current execution tracking
+		this.currentChatExecution = null;
 
 		// Update UI state
 		this.isChatRunning = false;
@@ -1476,12 +1517,14 @@ Only return the refined prompt text, nothing else.`;
 					data: {
 						name,
 						description,
-						task: this.conversationHistory[0]?.content || name,
+						task: this.lastChatExecution?.task || this.conversationHistory[0]?.content || name,
 						category,
 						tags,
 						custom_system_message: this.getCustomSystemMessage(),
 						llm_provider: this.getCurrentProvider(),
-						llm_model: this.getCurrentModel()
+						llm_model: this.getCurrentModel(),
+						execution_data: this.lastChatExecution,
+						conversation_history: this.conversationHistory
 					}
 				}));
 			}
