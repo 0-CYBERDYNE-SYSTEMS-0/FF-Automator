@@ -366,20 +366,36 @@ class SystemPromptWithCustom(SystemPrompt):
    - Dynamic UIs (e.g., Mail): Elements may refresh or reorder after actions, perform one action at a time.
 
 6. NAVIGATION & ERROR HANDLING:
+   - **CRITICAL**: Never repeat the same failed action more than twice - try alternatives immediately
+   - If click_element fails repeatedly on same index, STOP and try:
+     * Different element indices with similar functionality
+     * AppleScript approach for the same task
+     * Keyboard shortcuts or menu navigation
+     * Alternative UI paths (toolbars, context menus, etc.)
    - If an element isn't found, search for alternatives using descriptions or attributes.
-   - If stuck, try alternative approaches.
-   - If text input fails, ensure the element is a text field.
+   - If text input fails, ensure the element is a text field or try AppleScript.
    - If submit fails, try click_element on the submit button instead.
    - If the UI tree fails with "Window not found" or error `-25212`, use open_app to open the app again.
    - Before interacting, verify the element is enabled (check `enabled="True"` in attributes). If not, find an alternative or use AppleScript.
+   - **Failure Recovery Strategy**:
+     * 1st attempt: Try the direct UI approach
+     * 2nd attempt: Try a different element or parameter variation  
+     * 3rd attempt: Switch to AppleScript or keyboard shortcuts
+     * 4th attempt: Try completely different approach (menus, drag-drop, etc.)
+     * After 4 attempts: Use "done" with explanation of what was attempted
 
 7. APPLESCRIPT SUPPORT:
-   - Use AppleScript for precise control (e.g., creating a note directly) or when UI interactions fail after retries.   - Use this for complex operations not possible through UI interactions.
+   - Use AppleScript for precise control (e.g., creating a note directly) or when UI interactions fail after retries.
+   - Use this for complex operations not possible through UI interactions.
+   - **File Operations**: Always use proper path formats and check existence first
+   - **Path Handling**: Use POSIX file paths for cross-compatibility: `POSIX file "/Users/username/folder"`
    - Always use AppleScript with the correct command syntax.
    - Examples: 
-        - Tell application to make new note: {"run_apple_script": {"script": "tell application \"Notes\" to make new note"}}
+        - Create folder: {"run_apple_script": {"script": "tell application \"Finder\" to make new folder at desktop with properties {name:\"Screenshots\"}"}}
+        - Move files: {"run_apple_script": {"script": "tell application \"Finder\" to move (files of desktop whose name starts with \"Screenshot\") to folder \"Screenshots\" of desktop"}}
+        - Rename file: {"run_apple_script": {"script": "tell application \"Finder\" to set name of file \"oldname.png\" of desktop to \"newname.png\""}}
         - Text-to-speech: {"run_apple_script": {"script": "say \"Task complete\""}}
-        - Rename a file in Finder: {"run_apple_script": {"script": "tell application \"Finder\" to set name of item 1 of desktop to \"NewName\""}}
+        - Check file existence: {"run_apple_script": {"script": "tell application \"Finder\" to exists file \"filename\" of desktop"}}
 """
 		# Add custom message if provided
 		if self.custom_message:

@@ -1,15 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import base64
-import io
 import json
 import logging
 import os
-import platform
-import textwrap
 import uuid
-from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
 
@@ -17,15 +12,13 @@ from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import (
 	BaseMessage,
-	SystemMessage,
 )
 from lmnr import observe
 from openai import RateLimitError
-from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel, ValidationError
 
 from mlx_use.agent.message_manager.service import MessageManager
-from mlx_use.agent.prompts import AgentMessagePrompt, SystemPrompt
+from mlx_use.agent.prompts import SystemPrompt
 from mlx_use.agent.views import (
 	ActionResult,
 	AgentError,
@@ -455,6 +448,70 @@ class Agent:
 		if self.consecutive_failures >= self.max_failures:
 			logger.error(f'❌ Stopping due to {self.max_failures} consecutive failures')
 			return True
+		
+		# Check for repetitive action patterns
+		if self._detect_repetitive_patterns():
+			logger.error('❌ Stopping due to repetitive action patterns')
+			return True
+			
+		return False
+	
+	def _detect_repetitive_patterns(self) -> bool:
+		"""Detect repetitive action patterns that indicate the agent is stuck"""
+		if len(self.history.history) < 4:
+			return False
+			
+		# Get the last few steps
+		recent_steps = self.history.history[-4:]
+		
+		# Check for same action repeated with same results
+		action_patterns = []
+		for step in recent_steps:
+			if step.output and step.output.action:
+				for action in step.output.action:
+					action_dict = action.model_dump(exclude_unset=True)
+					action_name = next(iter(action_dict.keys())) if action_dict else None
+					if action_name:
+						# Include action name and parameters for pattern detection
+						action_patterns.append({
+							'action': action_name,
+							'params': action_dict.get(action_name, {}),
+							'result': step.result[0].extracted_content if step.result else None,
+							'error': step.result[0].error if step.result and step.result[0].error else None
+						})
+		
+		# Check for identical actions repeated 3+ times
+		if len(action_patterns) >= 3:
+			# Look for consecutive identical actions with failures
+			for i in range(len(action_patterns) - 2):
+				pattern1 = action_patterns[i]
+				pattern2 = action_patterns[i + 1]
+				pattern3 = action_patterns[i + 2]
+				
+				# Check if same action with same parameters
+				if (pattern1['action'] == pattern2['action'] == pattern3['action'] and
+					pattern1['params'] == pattern2['params'] == pattern3['params']):
+					
+					# If all three resulted in errors, we're in a loop
+					if (pattern1.get('error') and pattern2.get('error') and pattern3.get('error')):
+						logger.warning(f"Detected repetitive failed action: {pattern1['action']} with params {pattern1['params']}")
+						return True
+		
+		# Check for click actions on same element indices that keep failing
+		click_failures = []
+		for pattern in action_patterns[-6:]:  # Check last 6 actions
+			if (pattern['action'] == 'click_element' and 
+				pattern.get('error') and 
+				'Click failed' in pattern.get('error', '')):
+				click_failures.append(pattern['params'].get('index'))
+		
+		# If we have 3+ click failures on same or similar indices, stop
+		if len(click_failures) >= 3:
+			unique_indices = set(click_failures)
+			if len(unique_indices) <= 2:  # Same or very few indices being clicked repeatedly
+				logger.warning(f"Detected repetitive click failures on indices: {click_failures}")
+				return True
+		
 		return False
 
 	async def _handle_control_flags(self) -> bool:

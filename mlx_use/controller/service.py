@@ -1,25 +1,23 @@
 import asyncio
-import json
 import logging
-from typing import Literal
 import subprocess
+from typing import Literal
 
 import Cocoa
-from playwright.async_api import Page
 
 from mlx_use.agent.views import ActionModel, ActionResult
 from mlx_use.controller.registry.service import Registry
 from mlx_use.controller.views import (
+	AppleScriptAction,
+	ClickElementAction,
 	DoneAction,
 	InputTextAction,
-	ClickElementAction,
 	OpenAppAction,
+	ReplyAction,
 	RightClickElementAction,
-	AppleScriptAction,
 	ScrollElementAction,
-	ReplyAction
 )
-from mlx_use.mac.actions import click, type_into, right_click, scroll
+from mlx_use.mac.actions import click, right_click, scroll, type_into
 from mlx_use.mac.tree import MacUITreeBuilder
 from mlx_use.utils import time_execution_async, time_execution_sync
 
@@ -84,7 +82,7 @@ class Controller:
 				param_model=ClickElementAction,
 				  requires_mac_builder=True)
 		async def click_element(index: int, action: str, mac_tree_builder: MacUITreeBuilder):
-			logger.debug(f'Clicking element {index}')
+			logger.debug(f'Clicking element {index} with action {action}')
 
 			try:
 				if index in mac_tree_builder._element_cache:
@@ -92,8 +90,19 @@ class Controller:
 					
 					if not element_to_click.enabled:
 						msg = f'❌ Cannot click: Element is disabled: {element_to_click}'
+						suggestions = "💡 Try finding an enabled alternative element or use AppleScript"
+						full_msg = f'{msg}\n{suggestions}'
 						logging.error(msg)
-						return ActionResult(extracted_content=msg, error=msg)
+						return ActionResult(extracted_content=full_msg, error=full_msg)
+					
+					# Check if element is visible and accessible
+					if hasattr(element_to_click, 'frame') and element_to_click.frame:
+						if element_to_click.frame.size.width == 0 or element_to_click.frame.size.height == 0:
+							msg = f'❌ Element {index} has zero size (may be hidden)'
+							suggestions = "💡 Try scrolling to make element visible or find alternative element"
+							full_msg = f'{msg}\n{suggestions}'
+							logging.error(msg)
+							return ActionResult(extracted_content=full_msg, error=full_msg)
 						
 					click_successful = click(element_to_click, action)
 					if click_successful:
@@ -103,17 +112,38 @@ class Controller:
 							include_in_memory=True
 						)
 					else:
+						# Provide specific suggestions based on element type
+						element_type = getattr(element_to_click, 'type', 'unknown')
+						suggestions = []
+						
+						if 'Button' in element_type:
+							suggestions.append("💡 Try different action: 'AXPress' instead of 'AXOpen'")
+						elif 'Menu' in element_type:
+							suggestions.append("💡 Try 'AXOpen' action for menus")
+						elif 'TextField' in element_type:
+							suggestions.append("💡 Use input_text action instead of click for text fields")
+						else:
+							suggestions.append("💡 Try alternative element or AppleScript approach")
+							
+						suggestions.append(f"💡 Element type: {element_type}, available actions: {getattr(element_to_click, 'actions', 'unknown')}")
+						
 						msg = f'❌ Click failed for element with index {index}'
+						full_msg = f'{msg}\n{" ".join(suggestions)}'
 						logging.error(msg)
-						return ActionResult(extracted_content=msg, error=msg)
+						return ActionResult(extracted_content=full_msg, error=full_msg)
 				else:
+					available_indices = list(mac_tree_builder._element_cache.keys()) if mac_tree_builder._element_cache else []
 					msg = f'❌ Invalid index: {index}'
+					suggestions = f"💡 Available indices: {available_indices[:10]}..." if len(available_indices) > 10 else f"💡 Available indices: {available_indices}"
+					full_msg = f'{msg}\n{suggestions}'
 					logging.error(msg)
-					return ActionResult(extracted_content=msg, error=msg)
+					return ActionResult(extracted_content=full_msg, error=full_msg)
 			except Exception as e:
 				msg = f'❌ An error occurred: {str(e)}'
+				suggestions = "💡 Try refreshing UI tree or using AppleScript alternative"
+				full_msg = f'{msg}\n{suggestions}'
 				logging.error(msg)
-				return ActionResult(extracted_content=msg, error=msg)
+				return ActionResult(extracted_content=full_msg, error=full_msg)
 		
 		@self.registry.action(
 			'Right click element',
@@ -228,19 +258,19 @@ class Controller:
 				return ActionResult(extracted_content=f'Successfully opened app {app_name}', current_app_pid=pid)
 			
 		@self.registry.action(
-			'Run a AppleScript',
+			'Run a AppleScript (use for file operations, app control, system tasks when UI automation fails)',
 			param_model=AppleScriptAction
 		)
 		async def run_apple_script(script: str):
 			logger.debug(f'Running AppleScript: {script}')
 			
-			# Wrap the original script in error handling and return value logic
+			# Wrap the original script in enhanced error handling and return value logic
 			wrapped_script = f'''
 				try
 					{script}
 					return "OK"
-				on error errMsg
-					return "ERROR: " & errMsg
+				on error errMsg number errNum
+					return "ERROR: " & errMsg & " (Error " & errNum & ")"
 				end try
 			'''
 			
@@ -248,24 +278,44 @@ class Controller:
 				result = subprocess.run(
 					['osascript', '-e', wrapped_script],
 					capture_output=True,
-					text=True
+					text=True,
+					timeout=30  # Add timeout to prevent hanging
 				)
 				
 				if result.returncode == 0:
 					output = result.stdout.strip()
 					if output == "OK":
-						return ActionResult(extracted_content="Success")
+						return ActionResult(extracted_content="AppleScript executed successfully")
 					elif output.startswith("ERROR:"):
 						error_msg = output
-						logger.error(error_msg)
+						logger.error(f"AppleScript error: {error_msg}")
+						
+						# Provide helpful suggestions for common errors
+						suggestions = []
+						if "Can't make file" in error_msg and "into type alias" in error_msg:
+							suggestions.append("💡 Try using POSIX file path format or check if the path exists")
+						elif "AppleEvent handler failed" in error_msg:
+							suggestions.append("💡 The target application may not support this operation - try a different approach")
+						elif "Application isn't running" in error_msg:
+							suggestions.append("💡 Make sure the target application is open first")
+						elif "doesn't understand" in error_msg:
+							suggestions.append("💡 This application may not support the requested AppleScript command")
+						
+						if suggestions:
+							error_msg += f"\n{' '.join(suggestions)}"
+							
 						return ActionResult(extracted_content=error_msg, error=error_msg)
 					else:
-						return ActionResult(extracted_content=output)
+						return ActionResult(extracted_content=f"AppleScript result: {output}")
 				else:
 					error_msg = f"AppleScript failed with return code {result.returncode}: {result.stderr.strip()}"
 					logger.error(error_msg)
 					return ActionResult(extracted_content=error_msg, error=error_msg)
 					
+			except subprocess.TimeoutExpired:
+				error_msg = "AppleScript timed out after 30 seconds"
+				logger.error(error_msg)
+				return ActionResult(extracted_content=error_msg, error=error_msg)
 			except Exception as e:
 				error_msg = f"Failed to run AppleScript: {str(e)}"
 				logger.error(error_msg)
