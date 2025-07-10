@@ -48,6 +48,18 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+
+def serialize_datetime_objects(obj):
+	"""Recursively convert datetime objects to ISO format strings."""
+	if isinstance(obj, datetime):
+		return obj.isoformat()
+	elif isinstance(obj, dict):
+		return {key: serialize_datetime_objects(value) for key, value in obj.items()}
+	elif isinstance(obj, list):
+		return [serialize_datetime_objects(item) for item in obj]
+	else:
+		return obj
+
 class ChatSystemPromptWithCustom(SystemPrompt):
 	"""System prompt optimized for chat interactions with macOS automation that supports custom messages"""
 	
@@ -1824,22 +1836,13 @@ async def get_context_items():
 		items = web_app.global_context_bucket.get_all_items()
 		stats = web_app.global_context_bucket.get_stats()
 		
-		# Convert items to dict with proper datetime serialization
-		serialized_items = []
-		for item in items:
-			item_dict = item.model_dump()
-			# Convert datetime objects to ISO format strings
-			if item_dict.get('created_at'):
-				item_dict['created_at'] = item_dict['created_at'].isoformat()
-			if item_dict.get('updated_at'):
-				item_dict['updated_at'] = item_dict['updated_at'].isoformat()
-			if item_dict.get('last_used'):
-				item_dict['last_used'] = item_dict['last_used'].isoformat()
-			serialized_items.append(item_dict)
+		# Serialize items and stats with datetime conversion
+		serialized_items = [serialize_datetime_objects(item.model_dump()) for item in items]
+		serialized_stats = serialize_datetime_objects(stats)
 		
 		return JSONResponse(content={
 			"items": serialized_items,
-			"stats": stats
+			"stats": serialized_stats
 		})
 	except Exception as e:
 		logger.error(f"Error getting context items: {e}")
