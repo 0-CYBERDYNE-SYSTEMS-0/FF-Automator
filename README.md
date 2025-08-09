@@ -1,205 +1,300 @@
-<picture>
-  <img alt="Shows a black Browser Use Logo in light color mode and a white one in dark color mode." src="./static/macos-use.png"  width="full">
-</picture>
-
-<br/>
-
-[![GitHub stars](https://img.shields.io/github/stars/browser-use/macOS-use?style=social)](https://github.com/browser-use/macOS-use/stargazers)
-[![Discord](https://img.shields.io/discord/1303749220842340412?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://link.browser-use.com/discord)
-[![Twitter Follow](https://img.shields.io/twitter/follow/OfirOzeri?style=social)](https://x.com/OfirOzeri)
-[![Twitter Follow](https://img.shields.io/twitter/follow/Gregor?style=social)](https://x.com/gregpr07)
-[![Twitter Follow](https://img.shields.io/twitter/follow/Magnus?style=social)](https://x.com/mamagnus00)
+# FF-Automator 🚀
 
 <div align="center">
-  <h2>Tell your MacBook what to do, and it's done—across ANY app.</h2>
-  Created by <a href="https://x.com/OfirOzeri">Ofir Ozeri </a>♥️ migrated in collaboration with <a href="https://x.com/mamagnus00">Magnus</a> and <a href="https://x.com/gregpr07">Gregor</a><br> 
+  <img src="./static/macos-use.png" alt="FF-Automator Logo" width="full">
+  
+  <h2>Advanced macOS Automation Framework with AI-Powered Natural Language Control</h2>
+  
+  [![GitHub stars](https://img.shields.io/github/stars/0-CYBERDYNE-SYSTEMS-0/FF-Automator?style=social)](https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator/stargazers)
+  [![Release](https://img.shields.io/github/v/release/0-CYBERDYNE-SYSTEMS-0/FF-Automator)](https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator/releases)
+  [![License](https://img.shields.io/github/license/0-CYBERDYNE-SYSTEMS-0/FF-Automator)](LICENSE)
 </div>
-<br>
 
-macOS-use enables AI agents to interact with your Macbook [see it in action!](#demos)
+---
 
-# Quick start
+## 🌟 Major Features
 
-⚠️ Important: Review the [Warning](#warning) section before proceeding. <br>
+### 🖥️ Native macOS Desktop Application
+- **Go/Wails-based native app** for seamless macOS integration
+- **No browser conflicts** - runs independently of web automation tasks
+- **System integration** with menu bar and dock support
+- **Complete feature parity** with web interface
+- **Better performance** with direct system access
 
-### With pip:
+### 🌐 Advanced Web Interface
+- **Conversational chat** with autonomous multi-step execution
+- **Real-time streaming** with live progress updates
+- **Task queue system** for handling multiple requests
+- **Advanced controls**: interrupt, redirect, task refinement
+- **Session management** with persistent conversation history
 
+### 🤖 Comprehensive LLM Support
+- **Cloud Providers**: 
+  - OpenAI (GPT-4.1, o3, o4-mini, o3-pro, o4-mini-high, gpt-4o, gpt-4o-mini)
+  - Anthropic (Claude 4 Opus/Sonnet, Claude 3.5 Sonnet/Haiku, Claude 3 series)
+  - Google (Gemini 2.5 Pro/Flash, Gemini 2.0 Flash/Live, Gemini 1.5 series)
+  - DeepSeek (deepseek-chat V3-0324, deepseek-reasoner R1-0528)
+  - OpenRouter (400+ models including free options)
+- **Local Providers**: 
+  - Ollama (auto-detected, no API key needed)
+  - LM Studio (auto-detected, no API key needed)
+- **Smart fallback** and provider health checking
+
+### ⚡ Automation System
+- **Pre-built templates** for common macOS tasks
+- **Cron-based scheduling** with enable/disable controls
+- **Execution history** tracking success/failure rates
+- **Category and tag organization**
+- **Template duplication and customization**
+
+### 💻 Enhanced CLI
+- **Session management** with persistent history
+- **Command auto-completion** and history
+- **Streaming output** with real-time progress
+- **Natural language parsing**
+- **Standalone demo mode** (no installation required)
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: Web Interface (Recommended)
 ```bash
-pip install mlx-use
+git clone https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator.git
+cd FF-Automator
+cp .env.example .env  # Add your API keys
+python web_interface_app.py
 ```
 
-### From github
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080) in your browser.
 
-Clone first
-<br>
-
+### Option 2: Native macOS App (Best Performance)
 ```bash
-git clone https://github.com/browser-use/macOS-use.git && cd macOS-use
+cd go-ui
+./install.sh  # First-time setup (installs Wails CLI)
+make build    # Development build
+make dev      # Development with hot reload
+make build-prod  # Production .app bundle
+make dmg      # Create DMG installer
 ```
 
-Don't forget API key <br>Supported providers: [OpenAI](https://platform.openai.com/docs/quickstart), [Anthropic](https://docs.anthropic.com/en/api/admin-api/apikeys/get-api-key), [Google Gemini](https://ai.google.dev/gemini-api/docs/api-key), [DeepSeek](https://platform.deepseek.com/), [OpenRouter](https://openrouter.ai/), or run locally with [Ollama](https://ollama.ai)/[LM Studio](https://lmstudio.ai/)
-
-<br> At the moment, macOS-use works best with OpenAI or Anthropic APIs, although Gemini is free. Local models work great for privacy-focused use cases.
-<br>
-
+### Option 3: Enhanced CLI
 ```bash
-cp .env.example .env
+python mlx_use_cli.py              # Full-featured CLI
+python standalone_cli.py           # Standalone demo (no installation)
 ```
 
-```bash
-open ./.env
-```
+---
 
-We recommend using macOS-use with uv environment
-<br>
+## ⚙️ Installation & Setup
 
+### Requirements
+- **macOS** (accessibility permissions required)
+- **Python 3.11+**
+- **Go 1.21+** (for native app)
+
+### Environment Setup
 ```bash
+# Using uv (recommended)
 brew install uv && uv venv && source .venv/bin/activate
+uv pip install --editable .
+
+# Copy and configure environment
+cp .env.example .env
+open .env  # Add your API keys
 ```
 
-Install locally and you're good to go! try the first example!
-<br>
+### API Keys Configuration
+Get your API keys from:
+- **OpenAI**: https://platform.openai.com/api-keys
+- **Anthropic**: https://console.anthropic.com/account/keys  
+- **Google**: https://console.cloud.google.com/apis/credentials
+- **DeepSeek**: https://platform.deepseek.com/api_keys
+- **OpenRouter**: https://openrouter.ai/keys
 
-```bash
-uv pip install --editable . && python examples/try.py
+---
 
-```
+## 🎯 Usage Examples
 
-## 🌐 Web Interface
-
-Launch the modern web interface for conversational automation:
-
-```bash
-python web_interface/api/main.py
-```
-
-Then open [http://localhost:8080](http://localhost:8080) in your browser.
-
-### Features:
-- **Conversational Chat**: Natural language control with autonomous multi-step execution
-- **Agent Mode**: Terminal-style execution with real-time progress
-- **Session Management**: Save, load, and manage conversation history
-- **Provider Support**: Switch between OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, and LM Studio
-- **Automation Templates**: Quick-start templates for common tasks
-- **Interactive Controls**: Interrupt, redirect, and queue multiple tasks
-
-Try prompting it with complex requests like:
+### Conversational Automation
+Try these complex multi-step commands:
 
 ```bash
 "Open Calculator, compute 15 * 23, then open Notes and write the result"
-"Go to GitHub, find trending repositories, and create a note with the top 3"
+"Go to GitHub, find trending repositories, and create a note with the top 3"  
 "Check my system information and create an email draft with the details"
+"Open Excel, create a budget spreadsheet, and add sample categories"
 ```
 
-## 🖥️ Native macOS Application (New!)
+### Automation Templates
+Access pre-built templates for:
+- **Calculator Operations**: Complex mathematical computations
+- **Note Taking**: Structured note creation and organization
+- **System Information**: Hardware and software inventory
+- **File Management**: Automated file organization
+- **Web Research**: Automated information gathering
 
-For a better experience without browser conflicts, use our native Go-based desktop application:
-
+### Scheduling
+Set up automated tasks with cron expressions:
 ```bash
-cd go-ui
-./install.sh    # First time setup (installs Wails CLI)
-./build.sh dev  # For development
-./build.sh prod # For production .app bundle
+"0 9 * * 1-5"  # Every weekday at 9 AM
+"*/30 * * * *"  # Every 30 minutes
+"0 0 1 * *"     # First day of every month
 ```
 
-### Native App Benefits:
-- **No Browser Conflicts**: Won't interfere with browser automation
-- **System Integration**: Native macOS menu bar and dock integration
-- **Better Performance**: Direct system access without browser overhead
-- **Standalone**: Runs independently without browser dependencies
+---
 
-See [go-ui/README.md](go-ui/README.md) for detailed setup instructions.
+## 🔧 Technical Architecture
 
-# Demos
+### Core Components
+- **`mlx_use/agent/`**: AI agent logic and LLM conversation management
+- **`mlx_use/controller/`**: Action orchestration and registry system
+- **`mlx_use/mac/`**: macOS accessibility API integration layer
+- **`mlx_use/cli/`**: Enhanced CLI interface with session management
+- **`mlx_use/automation/`**: Task automation, scheduling, and templates
+- **`web_interface/`**: Modern JavaScript-based web interface
+- **`go-ui/`**: Native macOS desktop application (Wails + Go)
 
-<h3> Click the GIF for the full video! </h3>
+### Key Features
+- **Async/await patterns** throughout codebase
+- **Structured logging** with configurable levels
+- **Error handling** with graceful degradation
+- **Security-focused** with comprehensive .gitignore
+- **Registry pattern** for action discovery and registration
 
-[prompt](https://github.com/browser-use/macOS-use/blob/main/examples/calculate.py): Calculate how much is 5 X 4 and return the result, then call done.
+---
 
+## 🧪 Testing & Development
+
+### Running Tests
 ```bash
-python examples/calculate.py
-
+pytest                    # All tests
+pytest -m unit           # Unit tests only  
+pytest -m integration    # Integration tests only
+pytest -m slow           # Slow tests only
+pytest -v --tb=short     # Verbose output
+pytest -m "not slow"     # Skip slow tests
 ```
 
-<br>
-
-[![calc-5-times-4](https://github.com/browser-use/macOS-use/blob/main/static/calc-5-X-4.gif "Click the GIF for full video!")](https://x.com/OfirOzeri/status/1883110905665433681)
-
-<br/>
-
-[prompt](https://github.com/browser-use/macOS-use/blob/main/examples/login_to_auth0.py): Go to auth0.com, sign in with google auth, choose ofiroz91 gmail account, login to the website and call done when you finish.
-
+### Code Quality
 ```bash
-python examples/login_to_auth0.py
+ruff format .             # Format code (single quotes, tabs, 130 char limit)
+ruff check .              # Lint code
+ruff check --fix .        # Fix auto-fixable issues
 ```
 
- <br>
-
-[![login-to-auth0](https://github.com/browser-use/macOS-use/blob/main/static/login-to-auth0.gif "Click for full video")](https://x.com/OfirOzeri/status/1883455599423434966)
-
-<br/>
-
-[prompt](https://github.com/browser-use/macOS-use/blob/main/examples/check_time_online.py): Can you check what hour is Shabbat in israel today? call done when you finish.
-
+### Development Commands
 ```bash
-python examples/check_time_online.py
+python examples/try.py              # Interactive agent demo
+python examples/calculate.py        # Calculator automation
+python examples/excel.py           # Excel automation demo
+python test_providers.py           # Test all LLM providers
 ```
 
-<br>
+---
 
-[![check-time-online](https://github.com/browser-use/macOS-use/blob/main/static/check-time-online.gif "Click for full video")](https://x.com/OfirOzeri/status/1883109604416278552)
+## 🔒 Security & Privacy
 
-<br>
+### Security Features
+- **No credentials stored** in repository
+- **Comprehensive .gitignore** protecting sensitive data
+- **Environment variable** configuration for API keys
+- **Local model support** for privacy-focused use cases
+- **Provider health checking** with automatic failover
 
-# Our Vision:
+### Privacy Options
+- Use **local models** (Ollama, LM Studio) for complete privacy
+- **Disable telemetry** via environment variables
+- **Session encryption** for conversation history
+- **Selective data sharing** controls
 
-TLDR: Tell every Apple device what to do, and see it done. on EVERY APP.
-<br><br>
-This project aimes to build the AI agent for the MLX by Apple framework that would allow the agent to perform any action on any Apple device. Our final goal is a open source that anyone can clone, powered by the [mlx](https://github.com/ml-explore/mlx) and [mlx-vlm](https://github.com/Blaizzy/mlx-vlm) to run local private infrence at zero cost.
+---
 
-## Roadmap goals:
+## 🌐 Model Recommendations
 
-1. Support MacBooks at SOTA reliability
+### By Task Type
+- **Reasoning Tasks**: o3, o3-pro, Claude 4 Opus, deepseek-reasoner, Gemini 2.5 Pro
+- **Coding Tasks**: gpt-4.1, Claude 4 Sonnet, deepseek-chat, Gemini 2.5 Flash
+- **General Chat**: gpt-4o, Claude 3.5 Sonnet, Gemini 2.0 Flash
+- **Cost-Effective**: o4-mini, OpenRouter free models, Local models
 
-- [ ] Refine the Agent prompting.
-- [ ] Release the first working version to pypi.
-- [ ] Improve self-correction.
-- [x] Adding ability to check which apps the machine has installed.
-- [x] Add feature to allow the agent to check existing apps if failing, e.g. calendar app actual name is iCal.
-- [x] Enhanced conversational chat interface with multi-step autonomous execution.
-- [x] Comprehensive LLM provider support (OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, LM Studio).
-- [x] Web interface with real-time streaming and interactive controls.
-- [x] Session management and conversation history persistence.
-- [x] Task queue system for handling multiple requests and follow-ups.
-- [ ] Add action for the agent to ask input from the user.
-- [ ] Test Test Test! and let us know what and how to improve!
-- [ ] Make task cheaper and more efficient.
+### Provider Benefits
+- **OpenAI**: Latest models, reliable performance
+- **Anthropic**: Excellent reasoning, safety-focused
+- **Google**: Fast inference, good free tier
+- **DeepSeek**: Strong reasoning capabilities, cost-effective
+- **OpenRouter**: Access to 400+ models, many free options
+- **Local**: Complete privacy, no API costs, works offline
 
-2. Support local inference with small fine tuned model.
+---
 
-- [x] Add support for inference with local models using Ollama and LM Studio.
-- [ ] Add support for inference with local models using mlx and mlx-vlm.
-- [ ] Fine tune a small model that every device can run inference with.
-- [ ] SOTA reliability.
+## 📋 Roadmap
 
-3. Support iPhone/iPad
+### Completed ✅
+- [x] Enhanced conversational chat interface with multi-step autonomous execution
+- [x] Comprehensive LLM provider support (OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, LM Studio)
+- [x] Web interface with real-time streaming and interactive controls
+- [x] Session management and conversation history persistence
+- [x] Task queue system for handling multiple requests and follow-ups
+- [x] Native macOS desktop application with complete feature parity
+- [x] Automation templates and scheduling system
+- [x] Enhanced CLI with session management and auto-completion
 
-<br>
+### In Progress 🔄
+- [ ] Refine agent prompting for improved reliability
+- [ ] Enhanced self-correction mechanisms
+- [ ] User input prompts for interactive workflows
+- [ ] Performance optimizations and cost reduction
 
-# WARNING
+### Future Plans 🔮
+- [ ] MLX and mlx-vlm integration for local inference
+- [ ] Fine-tuned small model for on-device operation
+- [ ] iPhone/iPad support expansion
+- [ ] Advanced automation workflow builder
 
-This project is still under development and user discretion is advised!
-macOS-use can and will use your do [login](#demos), use private credentials, [auth services](https://github.com/browser-use/macOS-use/blob/main/examples/login_to_auth0.py) or stored passwords to complete its task, launch and interact WITH EVERY APP and UI component in your MacBook and restrictions to the model are still under active development! It is not recommended to operate it unsupervised YET
-macOS-use WILL NOT STOP at captcha or any other forms of bot identifications, so once again, user discretion is advised.
+---
 
-## Disclaimer:
+## ⚠️ Important Notes
 
-As this is an early stage release, You might experience varying success rates depending on task prompt, we're actively working on improvements. <br> talk me on [X/Twitter](https://x.com/OfirOzeri) or contact me on [Discord](https://link.browser-use.com/discord), your input is crucial and highly valuable!<br>
+### Accessibility Permissions
+FF-Automator requires macOS accessibility permissions to interact with applications. Grant permissions when prompted for full functionality.
 
-# Contributing
+### User Discretion Advised
+This is an advanced automation tool that can:
+- Access system-wide applications and credentials
+- Perform login operations and use stored passwords  
+- Interact with every app and UI component on your Mac
+- Execute complex multi-step workflows autonomously
 
-We are a new project and would love contributors! Feel free to PR, open issues for bugs or feature requests.
+**Always review tasks before execution and use appropriate caution.**
 
-# Thanks
+---
 
-I would like to extend my heartfelt thanks to [![Twitter Follow](https://img.shields.io/twitter/follow/Gregor?style=social)](https://x.com/gregpr07) and [![Twitter Follow](https://img.shields.io/twitter/follow/Magnus?style=social)](https://x.com/mamagnus00) for their incredible work in developing Browser Use. Their dedication and expertise have been invaluable, especially in helping with the migration process and I couldn't have done it without them!
+## 🤝 Contributing
+
+We welcome contributions! Feel free to:
+- Submit pull requests for new features or bug fixes
+- Open issues for bug reports or feature requests
+- Contribute to documentation and examples
+- Share automation templates and workflows
+
+---
+
+## 📞 Support & Community
+
+- **Issues**: [GitHub Issues](https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator/discussions)
+- **Documentation**: See CLAUDE.md for detailed technical documentation
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+  <h3>🚀 Advanced macOS automation framework with AI-powered natural language control</h3>
+  <p>Tell your Mac what to do, and watch it happen across ANY app.</p>
+</div>
