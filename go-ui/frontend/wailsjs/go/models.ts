@@ -91,6 +91,44 @@ export namespace ui {
 		    return a;
 		}
 	}
+	export class AutomationHistory {
+	    execution_id: string;
+	    executed_at: string;
+	    status: string;
+	    duration: number;
+	    error_message?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AutomationHistory(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.execution_id = source["execution_id"];
+	        this.executed_at = source["executed_at"];
+	        this.status = source["status"];
+	        this.duration = source["duration"];
+	        this.error_message = source["error_message"];
+	    }
+	}
+	export class AutomationSchedule {
+	    cron_expression: string;
+	    enabled: boolean;
+	    next_run: string;
+	    last_run: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AutomationSchedule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cron_expression = source["cron_expression"];
+	        this.enabled = source["enabled"];
+	        this.next_run = source["next_run"];
+	        this.last_run = source["last_run"];
+	    }
+	}
 	export class AutomationTemplate {
 	    name: string;
 	    description: string;
@@ -129,6 +167,94 @@ export namespace ui {
 	        this.models = source["models"];
 	        this.available = source["available"];
 	    }
+	}
+	export class ProviderTestResult {
+	    provider: string;
+	    status: string;
+	    message: string;
+	    latency: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProviderTestResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.provider = source["provider"];
+	        this.status = source["status"];
+	        this.message = source["message"];
+	        this.latency = source["latency"];
+	    }
+	}
+	export class ScheduledAutomation {
+	    automation_id: string;
+	    name: string;
+	    schedules: AutomationSchedule[];
+	    next_execution: string;
+	    last_execution: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ScheduledAutomation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.automation_id = source["automation_id"];
+	        this.name = source["name"];
+	        this.schedules = this.convertValues(source["schedules"], AutomationSchedule);
+	        this.next_execution = source["next_execution"];
+	        this.last_execution = source["last_execution"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SearchResult {
+	    automations: Automation[];
+	    total: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SearchResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.automations = this.convertValues(source["automations"], Automation);
+	        this.total = source["total"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Session {
 	    name: string;

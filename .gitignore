@@ -186,3 +186,101 @@ local/
 .cursor/
 docs/
 gradio_app/preferences.json
+
+# Security & Credentials
+*.key
+*.pem
+*.cert
+*.p12
+*.pfx
+auth.json
+secrets.json
+config.json
+.secrets/
+api_keys.json
+credentials/
+.env.local
+.env.production
+.env.staging
+
+# Session & User Data  
+sessions/
+session_history/
+user_data/
+chat_history/
+automation_history/
+*.session
+*.chat
+*.history
+
+# Logs & Temporary Files
+logs/
+*.log.*
+temp/
+tmp/
+cache/
+.cache/
+output/
+screenshots/
+recordings/
+
+# Go/Wails specific
+go-ui/build/bin/
+go-ui/build/darwin/
+go-ui/build/windows/
+go-ui/build/linux/
+go-ui/app.syso
+go-ui/*.app/
+go-ui/*.dmg
+go-ui/*.exe
+go-ui/*.deb
+go-ui/*.rpm
+wails.json.bak
+
+# Node.js (if any frontend deps)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS specific
+.Spotlight-V100
+.Trashes
+._*
+.AppleDouble
+.LSOverride
+Icon
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# System files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*.swp
+*.swo
+*~
+
+# Test artifacts
+test_output/
+test_results/
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# Personal/Private files
+PRIVATE*
+private*
+personal*
+TODO.md
+NOTES.md
+IDEAS.md

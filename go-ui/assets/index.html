@@ -24,11 +24,15 @@
                 <select id="model">
                     <option value="">Select provider first</option>
                 </select>
+                
+                <button id="test-provider" class="btn-small" title="Test Provider Connection">🔍 Test</button>
             </div>
             
             <div class="mode-selector">
                 <button class="mode-btn active" data-mode="chat">💬 Chat Mode</button>
                 <button class="mode-btn" data-mode="agent">🤖 Agent Mode</button>
+                <button class="mode-btn" data-mode="templates">📋 Templates</button>
+                <button class="mode-btn" data-mode="scheduler">⏰ Scheduler</button>
             </div>
             
             <div class="session-controls">
@@ -42,11 +46,21 @@
             
             <div class="automation-controls">
                 <h3>Automations</h3>
+                <div class="automation-search">
+                    <input type="text" id="automation-search" placeholder="Search automations...">
+                    <select id="category-filter">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
                 <button id="save-automation" class="btn-secondary">🤖 Save as Automation</button>
                 <select id="automation-list">
                     <option value="">No saved automations</option>
                 </select>
-                <button id="run-automation" class="btn-secondary">▶️ Run Automation</button>
+                <div class="automation-actions">
+                    <button id="run-automation" class="btn-secondary">▶️ Run</button>
+                    <button id="duplicate-automation" class="btn-secondary">📋 Duplicate</button>
+                    <button id="view-history" class="btn-secondary">📊 History</button>
+                </div>
             </div>
             
             <div class="status-indicator">
@@ -58,6 +72,17 @@
         <div class="main-content">
             <div id="chat-view" class="view active">
                 <div class="chat-container">
+                    <div class="chat-header">
+                        <div class="chat-controls">
+                            <button id="interrupt-chat" class="btn-warning" style="display: none;">⏹️ Interrupt</button>
+                            <button id="redirect-chat" class="btn-warning" style="display: none;">🔄 Redirect</button>
+                            <button id="add-task" class="btn-secondary" style="display: none;">➕ Add Task</button>
+                        </div>
+                        <div class="chat-settings">
+                            <button id="refine-prompt" class="btn-small">✨ Refine Prompt</button>
+                            <button id="custom-system" class="btn-small">⚙️ Custom System</button>
+                        </div>
+                    </div>
                     <div id="chat-messages" class="messages"></div>
                     <div class="input-area">
                         <textarea id="chat-input" placeholder="Type your message..." rows="3"></textarea>
@@ -78,6 +103,30 @@
                 </div>
             </div>
             
+            <div id="templates-view" class="view">
+                <div class="templates-container">
+                    <div class="templates-header">
+                        <h2>Automation Templates</h2>
+                        <p>Create automations from pre-built templates</p>
+                    </div>
+                    <div id="template-grid" class="template-grid"></div>
+                </div>
+            </div>
+            
+            <div id="scheduler-view" class="view">
+                <div class="scheduler-container">
+                    <div class="scheduler-header">
+                        <h2>Automation Scheduler</h2>
+                        <p>Manage scheduled automations</p>
+                    </div>
+                    <div class="scheduler-controls">
+                        <button id="refresh-scheduled" class="btn-secondary">🔄 Refresh</button>
+                        <button id="add-schedule" class="btn-primary">➕ Add Schedule</button>
+                    </div>
+                    <div id="scheduled-list" class="scheduled-list"></div>
+                </div>
+            </div>
+            
             <div id="log-panel" class="log-panel">
                 <div class="log-header">
                     <h3>Backend Logs</h3>
@@ -88,7 +137,122 @@
         </div>
     </div>
     
+    <!-- Modal for custom system message -->
+    <div id="system-message-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Custom System Message</h3>
+                <span class="close" id="close-system-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <textarea id="system-message-input" placeholder="Enter custom system message..." rows="10"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button id="save-system-message" class="btn-primary">Save</button>
+                <button id="cancel-system-message" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for template creation -->
+    <div id="template-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create from Template</h3>
+                <span class="close" id="close-template-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="template-form"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="create-from-template" class="btn-primary">Create Automation</button>
+                <button id="cancel-template" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for scheduling -->
+    <div id="schedule-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Schedule Automation</h3>
+                <span class="close" id="close-schedule-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="schedule-automation">Automation:</label>
+                    <select id="schedule-automation">
+                        <option value="">Select automation...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="cron-expression">Cron Expression:</label>
+                    <input type="text" id="cron-expression" placeholder="0 9 * * 1-5">
+                    <small>Examples: "0 9 * * 1-5" (9 AM weekdays), "0 */2 * * *" (every 2 hours)</small>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="schedule-enabled" checked>
+                        Enabled
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-schedule" class="btn-primary">Save Schedule</button>
+                <button id="cancel-schedule" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for automation history -->
+    <div id="history-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Automation History</h3>
+                <span class="close" id="close-history-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="history-content"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="close-history" class="btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for prompt refinement -->
+    <div id="refine-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Refine Prompt</h3>
+                <span class="close" id="close-refine-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="original-prompt">Original Prompt:</label>
+                    <textarea id="original-prompt" rows="4" readonly></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="refined-prompt">Refined Prompt:</label>
+                    <textarea id="refined-prompt" rows="6" readonly></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="use-refined-prompt" class="btn-primary">Use Refined Prompt</button>
+                <button id="cancel-refine" class="btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+    
     <script src="/wails/runtime.js"></script>
+    <script>
+        // Debug Wails runtime loading
+        console.log('Wails runtime loaded:', !!window.runtime);
+        console.log('Wails Go bindings:', !!window.go);
+        if (window.go) {
+            console.log('Go UI App available:', !!window.go.ui?.App);
+        }
+    </script>
     <script src="app.js"></script>
 </body>
 </html>

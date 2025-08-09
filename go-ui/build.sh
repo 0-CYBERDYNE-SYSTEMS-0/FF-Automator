@@ -49,7 +49,7 @@ if [ "$1" = "dev" ]; then
     wails dev
 elif [ "$1" = "prod" ]; then
     echo "📦 Building production app..."
-    wails build -production -clean
+    wails build -clean
     echo "✅ Build complete! App is in build/bin/"
 else
     echo "🔨 Building development app..."

@@ -50,8 +50,12 @@ ruff check --fix .
 python examples/try.py              # Interactive agent demo
 python examples/calculate.py        # Calculator automation
 python examples/login_to_auth0.py   # Authentication workflow
-python gradio_app/app.py           # Web UI interface
+python examples/excel.py           # Excel automation demo
+python examples/check_time_online.py # Web browsing demo
+python gradio_app/app.py           # Legacy Gradio web interface
 python mlx_use_cli.py              # Enhanced interactive CLI
+python standalone_cli.py           # Standalone demo CLI (no installation)
+python web_interface_app.py        # Modern web interface (recommended)
 ```
 
 ### New UI Interfaces
@@ -93,6 +97,37 @@ python web_interface/api/main.py
 
 **Enhanced Chat Capabilities:**
 The chat interface now operates with full autonomous multi-step execution - no more stopping after the first action! Complex requests like "Open Calculator, compute 15 * 23, then open Notes and write the result" are executed completely automatically while maintaining conversational interaction.
+
+#### Native macOS Desktop Application (Go UI)
+
+**Launch the native macOS app (recommended for production use):**
+```bash
+cd go-ui
+./install.sh          # First-time setup (installs Wails CLI)
+make build            # Development build
+make dev              # Development with hot reload
+make build-prod       # Production .app bundle
+make dmg              # Create DMG installer
+```
+
+**Benefits of Native App:**
+- **No Browser Conflicts**: Won't interfere with browser automation tasks
+- **System Integration**: Native macOS menu bar and dock integration  
+- **Better Performance**: Direct system access without browser overhead
+- **Standalone**: Runs independently without browser dependencies
+- **Complete Feature Parity**: All web interface features in native app
+
+### Automation Templates and Scheduling
+
+**Built-in automation features:**
+```bash
+# Available via web interface and native app
+# - Pre-built automation templates (Calculator, Notes, System Info, etc.)
+# - Cron-based task scheduling with enable/disable controls
+# - Task execution history with success/failure tracking
+# - Template duplication and customization
+# - Category and tag organization system
+```
 
 ### Comprehensive LLM Provider Support (2025)
 
@@ -151,12 +186,18 @@ DEFAULT_LLM_MODEL=gpt-4.1
 - **`mlx_use/agent/`**: AI agent logic and LLM conversation management
 - **`mlx_use/controller/`**: Action orchestration and registry system
 - **`mlx_use/mac/`**: macOS accessibility API integration layer
-- **`gradio_app/`**: Web-based user interface
+- **`mlx_use/cli/`**: Enhanced CLI interface with session management
+- **`mlx_use/automation/`**: Task automation, scheduling, and templates
+- **`gradio_app/`**: Legacy Gradio web interface
+- **`web_interface/`**: Modern JavaScript-based web interface
+- **`go-ui/`**: Native macOS desktop application (Wails + Go)
 
 ### Key Service Classes
 - **`Agent`** (`mlx_use/agent/service.py`): Main orchestration class for AI task execution
 - **`Controller`** (`mlx_use/controller/service.py`): Coordinates actions and maintains state
 - **`MessageManager`** (`mlx_use/agent/message_manager/`): Handles LLM conversation flow
+- **`Registry`** (`mlx_use/controller/registry/service.py`): Action registration and discovery system
+- **`MacUITreeBuilder`** (`mlx_use/mac/tree.py`): macOS UI element tree generation and analysis
 
 ### Action System
 Actions are registered via the registry pattern in `mlx_use/controller/registry/`. New actions should:
@@ -202,6 +243,9 @@ Configure via environment variables: OpenAI (GPT-4/4o), Anthropic (Claude), Goog
 - Use pytest markers: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.slow`
 - Mock external services in unit tests
 - Integration tests require macOS accessibility permissions
+- Run specific test suites: `pytest -m "not slow"` to skip slow tests
+- Test files follow patterns: `test_*.py` or `*_test.py` in tests directory
+- Async tests are automatically handled via `asyncio_mode = auto` configuration
 
 ### Code Style
 - Single quotes for strings

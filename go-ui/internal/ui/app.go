@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/macOS-use/go-ui/internal/backend"
@@ -77,6 +77,41 @@ type AutomationTemplate struct {
 	Parameters  map[string]interface{} `json:"parameters,omitempty"`
 }
 
+type AutomationSchedule struct {
+	CronExpression string `json:"cron_expression"`
+	Enabled        bool   `json:"enabled"`
+	NextRun        string `json:"next_run"`
+	LastRun        string `json:"last_run"`
+}
+
+type AutomationHistory struct {
+	ExecutionID  string `json:"execution_id"`
+	ExecutedAt   string `json:"executed_at"`
+	Status       string `json:"status"`
+	Duration     int    `json:"duration"`
+	ErrorMessage string `json:"error_message,omitempty"`
+}
+
+type ScheduledAutomation struct {
+	AutomationID   string                `json:"automation_id"`
+	Name           string                `json:"name"`
+	Schedules      []AutomationSchedule  `json:"schedules"`
+	NextExecution  string                `json:"next_execution"`
+	LastExecution  string                `json:"last_execution"`
+}
+
+type SearchResult struct {
+	Automations []Automation `json:"automations"`
+	Total       int          `json:"total"`
+}
+
+type ProviderTestResult struct {
+	Provider  string `json:"provider"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+	Latency   int    `json:"latency"`
+}
+
 func NewApp() *App {
 	return &App{}
 }
@@ -135,7 +170,13 @@ func (a *App) OnShutdown(ctx context.Context) {
 
 // GetProviders returns available LLM providers
 func (a *App) GetProviders() ([]Provider, error) {
-	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/providers")
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+	
+	log.Println("Fetching providers from backend...")
+	resp, err := client.Get(a.pythonManager.GetBackendURL() + "/api/providers")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get providers: %v", err)
 	}
@@ -150,7 +191,105 @@ func (a *App) GetProviders() ([]Provider, error) {
 		return nil, fmt.Errorf("failed to decode providers: %v", err)
 	}
 
+	log.Printf("Successfully loaded %d providers", len(providers))
 	return providers, nil
+}
+
+// InterruptChat interrupts the current chat
+func (a *App) InterruptChat() error {
+	if a.wsClient == nil || !a.wsClient.IsConnected() {
+		return fmt.Errorf("not connected to backend")
+	}
+	
+	interruptMsg := map[string]string{"type": "interrupt_chat"}
+	message, err := json.Marshal(interruptMsg)
+	if err != nil {
+		return err
+	}
+	
+	return a.wsClient.Send(message)
+}
+
+// RedirectChat redirects the current chat to a new task
+func (a *App) RedirectChat(newTask string) error {
+	if a.wsClient == nil || !a.wsClient.IsConnected() {
+		return fmt.Errorf("not connected to backend")
+	}
+	
+	redirectMsg := map[string]interface{}{
+		"type": "redirect_chat",
+		"data": map[string]interface{}{
+			"new_task": newTask,
+		},
+	}
+	message, err := json.Marshal(redirectMsg)
+	if err != nil {
+		return err
+	}
+	
+	return a.wsClient.Send(message)
+}
+
+// AddTask adds a task to the chat queue
+func (a *App) AddTask(task string) error {
+	if a.wsClient == nil || !a.wsClient.IsConnected() {
+		return fmt.Errorf("not connected to backend")
+	}
+	
+	addTaskMsg := map[string]interface{}{
+		"type": "add_task",
+		"data": map[string]interface{}{
+			"task": task,
+		},
+	}
+	message, err := json.Marshal(addTaskMsg)
+	if err != nil {
+		return err
+	}
+	
+	return a.wsClient.Send(message)
+}
+
+// SaveAutomationFromChat saves an automation from the current chat
+func (a *App) SaveAutomationFromChat(name, description string) error {
+	if a.wsClient == nil || !a.wsClient.IsConnected() {
+		return fmt.Errorf("not connected to backend")
+	}
+	
+	saveMsg := map[string]interface{}{
+		"type": "save_automation",
+		"data": map[string]interface{}{
+			"name":        name,
+			"description": description,
+		},
+	}
+	message, err := json.Marshal(saveMsg)
+	if err != nil {
+		return err
+	}
+	
+	return a.wsClient.Send(message)
+}
+
+// ExecuteAutomationViaWebSocket executes an automation via WebSocket
+func (a *App) ExecuteAutomationViaWebSocket(automationID string, parameters map[string]interface{}) error {
+	if a.wsClient == nil || !a.wsClient.IsConnected() {
+		return fmt.Errorf("not connected to backend")
+	}
+	
+	executeMsg := map[string]interface{}{
+		"type": "execute_automation",
+		"data": map[string]interface{}{
+			"automation_id": automationID,
+			"parameters":    parameters,
+		},
+	}
+	message, err := json.Marshal(executeMsg)
+	if err != nil {
+		return err
+	}
+	
+	return a.wsClient.Send(message)
 }
 
 // SendTask sends a task to the Python backend
@@ -475,25 +614,230 @@ func (a *App) GetAutomationTags() ([]string, error) {
 }
 
 // TestProvider tests a provider connection
-func (a *App) TestProvider(provider string) error {
+func (a *App) TestProvider(provider string) (*ProviderTestResult, error) {
 	requestData := map[string]string{
 		"provider": provider,
 	}
 
 	jsonData, err := json.Marshal(requestData)
 	if err != nil {
-		return fmt.Errorf("failed to marshal test request: %v", err)
+		return nil, fmt.Errorf("failed to marshal test request: %v", err)
 	}
 
 	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/providers/test", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("failed to test provider: %v", err)
+		return nil, fmt.Errorf("failed to test provider: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result ProviderTestResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode test result: %v", err)
+	}
+
+	return &result, nil
+}
+
+// SearchAutomations searches for automations
+func (a *App) SearchAutomations(query, category string, tags []string) (*SearchResult, error) {
+	url := a.pythonManager.GetBackendURL() + "/api/automations/search"
+	params := make([]string, 0)
+	
+	if query != "" {
+		params = append(params, "q="+query)
+	}
+	if category != "" {
+		params = append(params, "category="+category)
+	}
+	for _, tag := range tags {
+		params = append(params, "tags="+tag)
+	}
+	
+	if len(params) > 0 {
+		url += "?" + strings.Join(params, "&")
+	}
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search automations: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("provider test failed: %s", string(body))
+		return nil, fmt.Errorf("search API returned status %d", resp.StatusCode)
+	}
+
+	var result SearchResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode search result: %v", err)
+	}
+
+	return &result, nil
+}
+
+// DuplicateAutomation duplicates an existing automation
+func (a *App) DuplicateAutomation(automationID, newName string) error {
+	requestData := map[string]string{
+		"new_name": newName,
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal duplicate request: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/automations/"+automationID+"/duplicate", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to duplicate automation: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("duplicate automation API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// GetAutomationHistory gets execution history for an automation
+func (a *App) GetAutomationHistory(automationID string) ([]AutomationHistory, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/automations/" + automationID + "/history")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get automation history: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("history API returned status %d", resp.StatusCode)
+	}
+
+	var history []AutomationHistory
+	if err := json.NewDecoder(resp.Body).Decode(&history); err != nil {
+		return nil, fmt.Errorf("failed to decode history: %v", err)
+	}
+
+	return history, nil
+}
+
+// ScheduleAutomation schedules an automation
+func (a *App) ScheduleAutomation(automationID, cronExpression string, enabled bool) error {
+	requestData := map[string]interface{}{
+		"cron_expression": cronExpression,
+		"enabled":         enabled,
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal schedule request: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/automations/"+automationID+"/schedule", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to schedule automation: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("schedule automation API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// RemoveAutomationSchedule removes a schedule from an automation
+func (a *App) RemoveAutomationSchedule(automationID string, scheduleIndex int) error {
+	req, err := http.NewRequest("DELETE", a.pythonManager.GetBackendURL()+"/api/automations/"+automationID+"/schedule/"+fmt.Sprintf("%d", scheduleIndex), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %v", err)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to remove schedule: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("remove schedule API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// GetScheduledAutomations gets all scheduled automations
+func (a *App) GetScheduledAutomations() ([]ScheduledAutomation, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/scheduled-automations")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get scheduled automations: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("scheduled automations API returned status %d", resp.StatusCode)
+	}
+
+	var scheduled []ScheduledAutomation
+	if err := json.NewDecoder(resp.Body).Decode(&scheduled); err != nil {
+		return nil, fmt.Errorf("failed to decode scheduled automations: %v", err)
+	}
+
+	return scheduled, nil
+}
+
+// RefinePrompt refines a prompt using AI
+func (a *App) RefinePrompt(prompt, provider, model string) (string, error) {
+	requestData := map[string]string{
+		"prompt":   prompt,
+		"provider": provider,
+		"model":    model,
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal refine request: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/refine-prompt", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", fmt.Errorf("failed to refine prompt: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("refine prompt API returned status %d", resp.StatusCode)
+	}
+
+	var result map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode refine result: %v", err)
+	}
+
+	return result["refined_prompt"], nil
+}
+
+// SendChatMessage sends a message via alternative chat endpoint
+func (a *App) SendChatMessage(message, provider, model, systemMessage string) error {
+	requestData := map[string]interface{}{
+		"message":               message,
+		"llm_provider":         provider,
+		"llm_model":            model,
+		"custom_system_message": systemMessage,
+	}
+
+	jsonData, err := json.Marshal(requestData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal chat request: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/chat/send", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to send chat message: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("chat send API returned status %d", resp.StatusCode)
 	}
 
 	return nil

@@ -4,17 +4,25 @@ import {ui} from '../models';
 import {context} from '../models';
 import {backend} from '../models';
 
+export function AddTask(arg1:string):Promise<void>;
+
 export function CreateAutomationFromTemplate(arg1:string,arg2:Record<string, any>):Promise<void>;
 
 export function DeleteAutomation(arg1:string):Promise<void>;
 
 export function DeleteSession(arg1:string):Promise<void>;
 
+export function DuplicateAutomation(arg1:string,arg2:string):Promise<void>;
+
 export function ExecuteAutomation(arg1:string,arg2:Record<string, any>):Promise<void>;
+
+export function ExecuteAutomationViaWebSocket(arg1:string,arg2:Record<string, any>):Promise<void>;
 
 export function GetAutomation(arg1:string):Promise<ui.Automation>;
 
 export function GetAutomationCategories():Promise<Array<string>>;
+
+export function GetAutomationHistory(arg1:string):Promise<Array<ui.AutomationHistory>>;
 
 export function GetAutomationTags():Promise<Array<string>>;
 
@@ -24,7 +32,11 @@ export function GetAutomations():Promise<Array<ui.Automation>>;
 
 export function GetProviders():Promise<Array<ui.Provider>>;
 
+export function GetScheduledAutomations():Promise<Array<ui.ScheduledAutomation>>;
+
 export function GetSessions():Promise<Array<ui.Session>>;
+
+export function InterruptChat():Promise<void>;
 
 export function LoadSession(arg1:string):Promise<ui.Session>;
 
@@ -32,12 +44,26 @@ export function OnShutdown(arg1:context.Context):Promise<void>;
 
 export function OnStartup(arg1:context.Context,arg2:backend.PythonManager):Promise<void>;
 
+export function RedirectChat(arg1:string):Promise<void>;
+
+export function RefinePrompt(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function RemoveAutomationSchedule(arg1:string,arg2:number):Promise<void>;
+
 export function SaveAutomation(arg1:ui.Automation):Promise<void>;
 
+export function SaveAutomationFromChat(arg1:string,arg2:string):Promise<void>;
+
 export function SaveSession(arg1:ui.Session):Promise<void>;
+
+export function ScheduleAutomation(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
+export function SearchAutomations(arg1:string,arg2:string,arg3:Array<string>):Promise<ui.SearchResult>;
+
+export function SendChatMessage(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function SendTask(arg1:ui.TaskRequest):Promise<void>;
 
 export function StopTask():Promise<void>;
 
-export function TestProvider(arg1:string):Promise<void>;
+export function TestProvider(arg1:string):Promise<ui.ProviderTestResult>;

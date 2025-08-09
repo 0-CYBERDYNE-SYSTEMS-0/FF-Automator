@@ -467,8 +467,8 @@ class Agent:
 		# Check for same action repeated with same results
 		action_patterns = []
 		for step in recent_steps:
-			if step.output and step.output.action:
-				for action in step.output.action:
+			if step.model_output and step.model_output.action:
+				for action in step.model_output.action:
 					action_dict = action.model_dump(exclude_unset=True)
 					action_name = next(iter(action_dict.keys())) if action_dict else None
 					if action_name:
