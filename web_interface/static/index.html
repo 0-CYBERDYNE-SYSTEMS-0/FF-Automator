@@ -57,6 +57,9 @@
 						</nav>
 					</div>
 					<div class="header-right">
+						<button id="theme-toggle" class="btn btn-secondary btn-sm" type="button" title="Toggle light/dark mode">
+							<i class="fas fa-moon"></i>
+						</button>
 						<div class="connection-status" id="connection-status">
 							<i class="fas fa-circle"></i>
 							<span>Connected</span>
@@ -111,6 +114,28 @@
 										<label>API Key:</label>
 										<input type="password" id="chat-api-key" class="setting-input" placeholder="Enter API key...">
 									</div>
+									<div class="setting-group gpt5-parameters" style="display: none;">
+										<label>
+											Reasoning Effort:
+											<i class="fas fa-brain help-icon" title="Control how thoroughly GPT-5 thinks about its responses. 'Minimal' for faster responses, 'High' for deeper reasoning."></i>
+										</label>
+										<select id="chat-reasoning-effort" class="setting-select">
+											<option value="minimal">Minimal</option>
+											<option value="medium" selected>Medium</option>
+											<option value="high">High</option>
+										</select>
+									</div>
+									<div class="setting-group gpt5-parameters" style="display: none;">
+										<label>
+											Verbosity:
+											<i class="fas fa-comment help-icon" title="Control response length and detail level. 'Low' for concise answers, 'High' for detailed explanations."></i>
+										</label>
+										<select id="chat-verbosity" class="setting-select">
+											<option value="low">Low</option>
+											<option value="medium" selected>Medium</option>
+											<option value="high">High</option>
+										</select>
+									</div>
 									<div class="setting-group">
 										<label>
 											Custom Instructions:
@@ -118,6 +143,19 @@
 										</label>
 										<textarea id="chat-custom-system" class="setting-textarea" placeholder="Enter custom instructions for the assistant..." rows="4"></textarea>
 									</div>
+								<div class="setting-group">
+									<label>
+										Background Image:
+										<i class="fas fa-image help-icon" title="Upload an image to use as the app background. Stored locally in your browser."></i>
+									</label>
+									<input type="file" id="bg-image-input" class="setting-input" accept="image/*">
+									<div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+										<button id="bg-clear-btn" class="btn btn-secondary btn-sm" type="button">
+											<i class="fas fa-ban"></i> Clear Background
+										</button>
+									</div>
+									<small class="text-muted">Your image never leaves this device. You can change or clear it anytime.</small>
+								</div>
 								</div>
 							</div>
 						</div>
@@ -243,6 +281,30 @@
 								<div class="form-group">
 									<label for="agent-api-key">API Key</label>
 									<input type="password" id="agent-api-key" placeholder="Enter API key...">
+								</div>
+								<div class="form-row agent-gpt5-parameters" style="display: none;">
+									<div class="form-group">
+										<label for="agent-reasoning-effort">
+											Reasoning Effort
+											<i class="fas fa-brain help-icon" title="Control how thoroughly GPT-5 reasons. 'High' provides better results for complex tasks."></i>
+										</label>
+										<select id="agent-reasoning-effort" class="form-select">
+											<option value="minimal">Minimal</option>
+											<option value="medium" selected>Medium</option>
+											<option value="high">High</option>
+										</select>
+									</div>
+									<div class="form-group">
+										<label for="agent-verbosity">
+											Verbosity
+											<i class="fas fa-comment help-icon" title="Control response detail. 'High' provides more detailed explanations of actions."></i>
+										</label>
+										<select id="agent-verbosity" class="form-select">
+											<option value="low">Low</option>
+											<option value="medium" selected>Medium</option>
+											<option value="high">High</option>
+										</select>
+									</div>
 								</div>
 
 								<div class="form-group">

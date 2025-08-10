@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**macOS-use** is a Python AI agent framework that enables natural language control of macOS applications through accessibility APIs. The project bridges AI language models with native macOS applications for task automation.
+**macOS-use** (FF-Automator) is a Python AI agent framework that enables natural language control of macOS applications through accessibility APIs. The project bridges AI language models with native macOS applications for task automation.
 
 ## Essential Commands
 
@@ -16,7 +16,10 @@ uv pip install --editable .
 
 # Required environment setup
 cp .env.example .env
-# Edit .env to add API keys (OpenAI, Anthropic, Gemini, DeepSeek)
+# Edit .env to add API keys (OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter)
+
+# Install pre-commit hooks (optional but recommended)
+pre-commit install
 ```
 
 ### Testing
@@ -28,9 +31,16 @@ pytest
 pytest -m unit           # Unit tests only
 pytest -m integration    # Integration tests only
 pytest -m slow          # Slow tests only
+pytest -m "not slow"    # Skip slow tests
 
 # Run with verbose output
 pytest -v --tb=short
+
+# Run specific test file
+pytest tests/test_agent.py
+
+# Run specific test function
+pytest tests/test_agent.py::test_agent_init
 ```
 
 ### Code Quality
@@ -43,6 +53,9 @@ ruff check .
 
 # Fix auto-fixable lint issues
 ruff check --fix .
+
+# Run pre-commit hooks manually
+pre-commit run --all-files
 ```
 
 ### Running Examples
@@ -58,7 +71,17 @@ python standalone_cli.py           # Standalone demo CLI (no installation)
 python web_interface_app.py        # Modern web interface (recommended)
 ```
 
-### New UI Interfaces
+### Interface Launch Commands
+
+#### Modern Web Interface (Recommended)
+```bash
+# Primary launch command
+python web_interface_app.py
+
+# Alternative (direct API server)
+python web_interface/api/main.py
+# Then open http://localhost:8080
+```
 
 #### Enhanced CLI Interface
 ```bash
@@ -76,31 +99,7 @@ python standalone_cli.py
 # - Session save/load/list commands
 ```
 
-#### Enhanced Web Interface
-
-**Launch the modern web interface:**
-```bash
-python web_interface/api/main.py
-# Then open http://localhost:8080 in your browser
-```
-
-**Features:**
-- **Conversational Chat**: Natural language control with autonomous multi-step execution
-- **Agent Mode**: Terminal-style execution with real-time progress
-- **Session Management**: Save, load, and manage conversation history  
-- **Provider Support**: Switch between OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, and LM Studio
-- **Automation Templates**: Quick-start templates for common tasks
-- **Interactive Controls**: Interrupt, redirect, and queue multiple tasks
-- **Real-time Streaming**: Live progress updates and step-by-step feedback
-- **Task Queue System**: Handle multiple requests and follow-ups automatically
-- **Conversation Memory**: Persistent context tracking across interactions
-
-**Enhanced Chat Capabilities:**
-The chat interface now operates with full autonomous multi-step execution - no more stopping after the first action! Complex requests like "Open Calculator, compute 15 * 23, then open Notes and write the result" are executed completely automatically while maintaining conversational interaction.
-
 #### Native macOS Desktop Application (Go UI)
-
-**Launch the native macOS app (recommended for production use):**
 ```bash
 cd go-ui
 ./install.sh          # First-time setup (installs Wails CLI)
@@ -108,6 +107,7 @@ make build            # Development build
 make dev              # Development with hot reload
 make build-prod       # Production .app bundle
 make dmg              # Create DMG installer
+make clean            # Clean build artifacts
 ```
 
 **Benefits of Native App:**
@@ -115,70 +115,22 @@ make dmg              # Create DMG installer
 - **System Integration**: Native macOS menu bar and dock integration  
 - **Better Performance**: Direct system access without browser overhead
 - **Standalone**: Runs independently without browser dependencies
-- **Complete Feature Parity**: All web interface features in native app
 
-### Automation Templates and Scheduling
-
-**Built-in automation features:**
-```bash
-# Available via web interface and native app
-# - Pre-built automation templates (Calculator, Notes, System Info, etc.)
-# - Cron-based task scheduling with enable/disable controls
-# - Task execution history with success/failure tracking
-# - Template duplication and customization
-# - Category and tag organization system
-```
-
-### Comprehensive LLM Provider Support (2025)
-
-#### Supported Providers & Models
-
-**🌐 Cloud Providers:**
-- **OpenAI**: GPT-4.1, o3, o4-mini, o3-pro, o4-mini-high, gpt-4o, gpt-4o-mini
-- **Anthropic**: Claude 4 (Opus, Sonnet), Claude 3.5 (Sonnet, Haiku), Claude 3 series
-- **Google**: Gemini 2.5 (Pro, Flash), Gemini 2.0 (Flash, Live), Gemini 1.5 series
-- **DeepSeek**: deepseek-chat (V3-0324), deepseek-reasoner (R1-0528)
-- **OpenRouter**: 400+ models including free options (Llama, Phi, Gemma)
-
-**💻 Local Providers:**
-- **Ollama**: Auto-detected models (no API key needed)
-- **LM Studio**: Auto-detected models (no API key needed)
-
-#### Quick Setup
+### Provider Testing and Configuration
 
 ```bash
-# Test all providers
+# Test all LLM providers
 python test_providers.py
 
-# Copy environment template
+# Test specific provider
+python -c "from mlx_use.agent.llm_models import test_provider; test_provider('OpenAI')"
+
+# Environment configuration
 cp .env.example .env
-
 # Add your API keys to .env:
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
-GEMINI_API_KEY=your_google_key
-DEEPSEEK_API_KEY=your_deepseek_key
-OPENROUTER_API_KEY=your_openrouter_key
-
-# Set preferred provider (optional)
-DEFAULT_LLM_PROVIDER=OpenAI
-DEFAULT_LLM_MODEL=gpt-4.1
+# OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY, OPENROUTER_API_KEY
+# Set DEFAULT_LLM_PROVIDER and DEFAULT_LLM_MODEL for preferences
 ```
-
-#### Provider Features
-
-**Model Selection by Task:**
-- **Reasoning**: o3, o3-pro, Claude 4 Opus, deepseek-reasoner, Gemini 2.5 Pro
-- **Coding**: gpt-4.1, Claude 4 Sonnet, deepseek-chat, Gemini 2.5 Flash
-- **General Chat**: gpt-4o, Claude 3.5 Sonnet, Gemini 2.0 Flash
-- **Cost-Effective**: o4-mini, OpenRouter free models, Local models
-
-**Advanced Features:**
-- Automatic provider health checking
-- Smart fallback to available providers
-- Cost optimization with spending limits
-- Task-specific provider preferences
-- Real-time provider status indicators
 
 ## Architecture
 
@@ -189,8 +141,8 @@ DEFAULT_LLM_MODEL=gpt-4.1
 - **`mlx_use/cli/`**: Enhanced CLI interface with session management
 - **`mlx_use/automation/`**: Task automation, scheduling, and templates
 - **`gradio_app/`**: Legacy Gradio web interface
-- **`web_interface/`**: Modern JavaScript-based web interface
-- **`go-ui/`**: Native macOS desktop application (Wails + Go)
+- **`web_interface/`**: Modern JavaScript-based web interface (FastAPI backend + vanilla JS frontend)
+- **`go-ui/`**: Native macOS desktop application (Wails + Go + Vue.js)
 
 ### Key Service Classes
 - **`Agent`** (`mlx_use/agent/service.py`): Main orchestration class for AI task execution
@@ -198,6 +150,7 @@ DEFAULT_LLM_MODEL=gpt-4.1
 - **`MessageManager`** (`mlx_use/agent/message_manager/`): Handles LLM conversation flow
 - **`Registry`** (`mlx_use/controller/registry/service.py`): Action registration and discovery system
 - **`MacUITreeBuilder`** (`mlx_use/mac/tree.py`): macOS UI element tree generation and analysis
+- **`LLMModels`** (`mlx_use/agent/llm_models.py`): Multi-provider LLM management with fallback
 
 ### Action System
 Actions are registered via the registry pattern in `mlx_use/controller/registry/`. New actions should:
@@ -205,6 +158,7 @@ Actions are registered via the registry pattern in `mlx_use/controller/registry/
 - Be registered in the controller registry
 - Follow async/await patterns
 - Include proper error handling
+- Implement `_invoke()` method for action logic
 
 ## Development Patterns
 
@@ -215,40 +169,80 @@ All operations use async/await patterns. UI interactions are non-blocking and su
 - Use structured logging via `mlx_use/logging_config.py`
 - Implement graceful degradation for UI state changes
 - Provide detailed error context for debugging
+- Use try/except blocks with specific exception types
 
 ### Configuration
 - Environment variables defined in `.env` (copy from `.env.example`)
-- Pydantic models for configuration validation
-- Centralized logging configuration
+- Pydantic models for configuration validation in `mlx_use/config/`
+- Centralized logging configuration in `mlx_use/logging_config.py`
+- Provider preferences in `.env` (DEFAULT_LLM_PROVIDER, DEFAULT_LLM_MODEL)
+
+### WebSocket Communication
+- Web interface uses WebSocket for real-time streaming
+- Reconnection logic with exponential backoff
+- Message queue for handling multiple requests
+- Binary message support for images/screenshots
 
 ## Dependencies
 
 ### Core Stack
-- **LangChain**: LLM integration and prompt management
+- **Python 3.11+** required
+- **LangChain** (0.3.x): LLM integration and prompt management
 - **pyobjc/pycocoa**: macOS native API bindings for accessibility
-- **Pydantic**: Data validation and modeling
+- **Pydantic** (2.10.4+): Data validation and modeling
+- **FastAPI/Uvicorn**: Modern web interface backend
 - **Playwright**: Web automation capabilities
+- **Gradio** (5.16.1+): Legacy web interface
+
+### Build Tools
+- **uv**: Fast Python package manager (recommended)
+- **Hatchling**: Python build backend
+- **Wails**: Go framework for native macOS app
+- **Ruff**: Fast Python linter and formatter
 
 ### Supported LLM Providers
-Configure via environment variables: OpenAI (GPT-4/4o), Anthropic (Claude), Google Gemini, DeepSeek
+Configure via environment variables:
+- **OpenAI**: GPT-4.1, o3, o4-mini series
+- **Anthropic**: Claude 4, Claude 3.5 series
+- **Google**: Gemini 2.5, 2.0, 1.5 series
+- **DeepSeek**: deepseek-chat, deepseek-reasoner
+- **OpenRouter**: 400+ models with free options
+- **Ollama**: Local models (auto-detected)
+- **LM Studio**: Local models (auto-detected)
 
 ## Important Notes
 
 ### Platform Requirements
 - **macOS only** - requires accessibility permissions
 - **Python 3.11+** required
+- **Go 1.21+** for native app development
 - **Security Warning**: Can access system-wide applications and credentials
 
 ### Testing Strategy
 - Use pytest markers: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.slow`
 - Mock external services in unit tests
 - Integration tests require macOS accessibility permissions
-- Run specific test suites: `pytest -m "not slow"` to skip slow tests
 - Test files follow patterns: `test_*.py` or `*_test.py` in tests directory
 - Async tests are automatically handled via `asyncio_mode = auto` configuration
+- Use `pytest.ini` for test configuration
 
 ### Code Style
 - Single quotes for strings
 - Tab indentation (not spaces)
 - 130-character line limit
 - Ruff for formatting and linting
+- Pre-commit hooks for code quality
+
+### Development Workflow
+1. Always run tests before committing: `pytest -m "not slow"`
+2. Format code with: `ruff format .`
+3. Check linting: `ruff check --fix .`
+4. Test provider connectivity: `python test_providers.py`
+5. For web interface changes, test both backend (FastAPI) and frontend (JavaScript)
+6. For native app changes, test with `make dev` in go-ui directory
+
+### Common Issues and Solutions
+- **Accessibility permissions**: Grant Terminal.app or your IDE accessibility access in System Settings
+- **Provider failures**: Check API keys in .env and run `python test_providers.py`
+- **WebSocket disconnects**: Check port 8080 availability and firewall settings
+- **Go UI build failures**: Ensure Wails CLI is installed with `./install.sh` in go-ui directory

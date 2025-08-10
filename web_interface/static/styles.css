@@ -61,7 +61,219 @@ body {
 	line-height: 1.5;
 	color: var(--gray-800);
 	background-color: var(--gray-50);
+	/* Custom background support */
+	background-image: var(--app-bg-image);
+	background-size: cover;
+	background-position: center center;
+	background-attachment: fixed;
 	overflow-x: hidden;
+}
+
+/* When a custom background is set, add a subtle overlay and elevate content cards */
+.with-custom-bg::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    /* Lighter overlay so the background image is visible (overridden in dark mode) */
+    background: rgba(255, 255, 255, 0.12);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.with-custom-bg .main-app,
+.with-custom-bg .chat-sidebar,
+.with-custom-bg .chat-main,
+.with-custom-bg .agent-form,
+.with-custom-bg .agent-output,
+.with-custom-bg .sessions-layout,
+.with-custom-bg .providers-layout,
+.with-custom-bg .automations-layout {
+	position: relative;
+	z-index: 1;
+}
+
+/* Glassmorphism for primary surfaces when a custom background is set */
+.with-custom-bg .app-header,
+.with-custom-bg .chat-sidebar,
+.with-custom-bg .chat-main,
+.with-custom-bg .agent-form,
+.with-custom-bg .agent-output,
+.with-custom-bg .sessions-layout,
+.with-custom-bg .providers-layout,
+.with-custom-bg .automations-layout {
+    background: rgba(255, 255, 255, 0.74);
+    -webkit-backdrop-filter: saturate(160%) blur(12px);
+    backdrop-filter: saturate(160%) blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+/* Make secondary strips/cards translucent too */
+.with-custom-bg .chat-input-area {
+    background: rgba(255, 255, 255, 0.7);
+    -webkit-backdrop-filter: saturate(160%) blur(10px);
+    backdrop-filter: saturate(160%) blur(10px);
+}
+
+/* Reduce heavy shadows over imagery */
+.with-custom-bg .chat-sidebar,
+.with-custom-bg .chat-main,
+.with-custom-bg .agent-form,
+.with-custom-bg .agent-output,
+.with-custom-bg .sessions-layout,
+.with-custom-bg .providers-layout,
+.with-custom-bg .automations-layout {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Let imagery come through secondary cards and tiles */
+.with-custom-bg .automation-btn,
+.with-custom-bg .provider-card,
+.with-custom-bg .session-card,
+.with-custom-bg .save-session-form,
+.with-custom-bg .automation-item,
+.with-custom-bg .progress-section,
+.with-custom-bg .terminal-output,
+.with-custom-bg .loading-automations,
+.with-custom-bg .loading-sessions,
+.with-custom-bg .loading-providers {
+    background: rgba(255, 255, 255, 0.66);
+    -webkit-backdrop-filter: saturate(160%) blur(8px);
+    backdrop-filter: saturate(160%) blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Inputs remain readable but slightly translucent */
+.with-custom-bg .setting-input,
+.with-custom-bg .setting-select,
+.with-custom-bg .setting-textarea,
+.with-custom-bg .search-input,
+.with-custom-bg .filter-select,
+.with-custom-bg .api-key-input {
+    background: rgba(255, 255, 255, 0.85);
+}
+
+/* ===================== */
+/* Dark theme overrides  */
+/* ===================== */
+
+body.theme-dark {
+    color: #E5E7EB; /* light text */
+    background-color: #0F141A;
+}
+
+/* Header and primary surfaces */
+.theme-dark .app-header {
+    background: rgba(17, 24, 39, 0.96);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .main-nav { background: rgba(255, 255, 255, 0.08); }
+.theme-dark .nav-btn { color: #A7B0BE; }
+.theme-dark .nav-btn:hover { background: rgba(255, 255, 255, 0.12); color: #E5E7EB; }
+.theme-dark .nav-btn.active { background: rgba(59, 130, 246, 0.15); color: #93C5FD; }
+
+.theme-dark .connection-status { background: rgba(255, 255, 255, 0.08); color: #E5E7EB; }
+
+.theme-dark .chat-sidebar,
+.theme-dark .chat-main,
+.theme-dark .agent-form,
+.theme-dark .agent-output,
+.theme-dark .sessions-layout,
+.theme-dark .providers-layout,
+.theme-dark .automations-layout {
+    background: #111827; /* slate-900 */
+    color: #E5E7EB;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .chat-header { border-color: rgba(255, 255, 255, 0.08); }
+.theme-dark .sessions-header, .theme-dark .providers-header { border-color: rgba(255, 255, 255, 0.08); }
+
+/* Inputs, cards, and secondary elements */
+.theme-dark .automation-btn,
+.theme-dark .provider-card,
+.theme-dark .session-card,
+.theme-dark .save-session-form,
+.theme-dark .automation-item,
+.theme-dark .progress-section,
+.theme-dark .automations-content,
+.theme-dark .automations-tabs,
+.theme-dark .automations-filter {
+    background: rgba(17, 24, 39, 0.9);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .setting-input,
+.theme-dark .setting-select,
+.theme-dark .setting-textarea,
+.theme-dark .form-input,
+.theme-dark .form-group input,
+.theme-dark .form-group textarea,
+.theme-dark .form-group select,
+.theme-dark .search-input,
+.theme-dark .filter-select,
+.theme-dark .api-key-input {
+    background: rgba(255, 255, 255, 0.06);
+    color: #E5E7EB;
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.theme-dark .setting-input:focus,
+.theme-dark .setting-select:focus,
+.theme-dark .setting-textarea:focus,
+.theme-dark .form-group input:focus,
+.theme-dark .form-group textarea:focus,
+.theme-dark .form-group select:focus,
+.theme-dark .search-input:focus,
+.theme-dark .filter-select:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.theme-dark .btn-secondary {
+    background: rgba(255, 255, 255, 0.12);
+    color: #E5E7EB;
+}
+.theme-dark .btn-secondary:hover { background: rgba(255, 255, 255, 0.18); }
+
+.theme-dark .hint { background: rgba(255, 255, 255, 0.06); color: #CBD5E1; }
+
+/* Terminal stays dark in both themes */
+.theme-dark .terminal-output { background: #0B1220; }
+.theme-dark .terminal-header { background: #111827; }
+.theme-dark .terminal-ready { color: #9CA3AF; }
+
+/* With custom background + dark theme: use darker translucent surfaces */
+body.theme-dark.with-custom-bg::before { background: rgba(0, 0, 0, 0.28); }
+
+.theme-dark.with-custom-bg .app-header,
+.theme-dark.with-custom-bg .chat-sidebar,
+.theme-dark.with-custom-bg .chat-main,
+.theme-dark.with-custom-bg .agent-form,
+.theme-dark.with-custom-bg .agent-output,
+.theme-dark.with-custom-bg .sessions-layout,
+.theme-dark.with-custom-bg .providers-layout,
+.theme-dark.with-custom-bg .automations-layout {
+    background: rgba(17, 24, 39, 0.74);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark.with-custom-bg .chat-input-area { background: rgba(17, 24, 39, 0.7); }
+
+.theme-dark.with-custom-bg .automation-btn,
+.theme-dark.with-custom-bg .provider-card,
+.theme-dark.with-custom-bg .session-card,
+.theme-dark.with-custom-bg .save-session-form,
+.theme-dark.with-custom-bg .automation-item,
+.theme-dark.with-custom-bg .progress-section,
+.theme-dark.with-custom-bg .terminal-output,
+.theme-dark.with-custom-bg .loading-automations,
+.theme-dark.with-custom-bg .loading-sessions,
+.theme-dark.with-custom-bg .loading-providers {
+    background: rgba(17, 24, 39, 0.66);
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Loading Screen */

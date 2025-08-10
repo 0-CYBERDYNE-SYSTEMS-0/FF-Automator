@@ -64,6 +64,8 @@ class FFTerminalApp {
 		// Set up initial UI state
 		this.updateConnectionStatus(false);
 		this.switchTab('chat');
+		// Apply saved theme on startup
+		this.applySavedTheme();
 	}
 
 	setupEventListeners() {
@@ -87,11 +89,45 @@ class FFTerminalApp {
 		// Providers functionality
 		this.setupProvidersListeners();
 
+		// Background image controls
+		this.setupBackgroundImageControls();
+
+		// Theme toggle
+		this.setupThemeToggle();
+
 		// Automation templates
 		this.setupAutomationTemplates();
 
 		// Help icons
 		this.setupHelpIcons();
+	}
+
+	// ===== Theme handling =====
+	setupThemeToggle() {
+		const btn = document.getElementById('theme-toggle');
+		if (!btn) return;
+		btn.addEventListener('click', () => {
+			const isDark = document.body.classList.toggle('theme-dark');
+			localStorage.setItem('ff_theme', isDark ? 'dark' : 'light');
+			this.updateThemeToggleIcon(isDark);
+		});
+		// initialize icon
+		this.updateThemeToggleIcon(document.body.classList.contains('theme-dark'));
+	}
+
+	applySavedTheme() {
+		const saved = localStorage.getItem('ff_theme');
+		const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+		const shouldBeDark = saved ? saved === 'dark' : prefersDark;
+		if (shouldBeDark) {
+			document.body.classList.add('theme-dark');
+		}
+	}
+
+	updateThemeToggleIcon(isDark) {
+		const btn = document.getElementById('theme-toggle');
+		if (!btn) return;
+		btn.innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
 	}
 
 	setupChatListeners() {
@@ -133,6 +169,11 @@ class FFTerminalApp {
 		document.getElementById('chat-provider').addEventListener('change', (e) => {
 			this.updateChatModels(e.target.value);
 		});
+		
+		// Model changes for GPT-5 parameter visibility
+		document.getElementById('chat-model').addEventListener('change', (e) => {
+			this.toggleGPT5Parameters('chat', e.target.value);
+		});
 	}
 
 	setupAgentListeners() {
@@ -151,6 +192,11 @@ class FFTerminalApp {
 		// Provider changes
 		document.getElementById('agent-provider').addEventListener('change', (e) => {
 			this.updateAgentModels(e.target.value);
+		});
+		
+		// Model changes for GPT-5 parameter visibility
+		document.getElementById('agent-model').addEventListener('change', (e) => {
+			this.toggleGPT5Parameters('agent', e.target.value);
 		});
 	}
 
@@ -185,6 +231,66 @@ class FFTerminalApp {
 					this.showToast(title, 'info');
 				}
 			});
+		});
+	}
+
+	// Background Image: load/apply, handle upload & clear
+	setupBackgroundImageControls() {
+		const fileInput = document.getElementById('bg-image-input');
+		const clearBtn = document.getElementById('bg-clear-btn');
+
+		// Apply on startup if exists
+		this.applySavedBackgroundImage();
+
+		if (fileInput) {
+			fileInput.addEventListener('change', async (e) => {
+				const file = e.target.files && e.target.files[0];
+				if (!file) return;
+				try {
+					const dataUrl = await this.readFileAsDataURL(file);
+					localStorage.setItem('ff_bg_image', dataUrl);
+					this.applyBackgroundImage(dataUrl);
+					this.showToast('Background image set', 'success');
+				} catch (err) {
+					console.error('Failed to load background image:', err);
+					this.showToast('Failed to set background image', 'error');
+				}
+			});
+		}
+
+		if (clearBtn) {
+			clearBtn.addEventListener('click', () => {
+				localStorage.removeItem('ff_bg_image');
+				this.clearBackgroundImage();
+				this.showToast('Background cleared', 'info');
+			});
+		}
+	}
+
+	applySavedBackgroundImage() {
+		const saved = localStorage.getItem('ff_bg_image');
+		if (saved) {
+			this.applyBackgroundImage(saved);
+		}
+	}
+
+	applyBackgroundImage(dataUrl) {
+		// Apply to body and provide subtle overlay for readability
+		document.body.style.setProperty('--app-bg-image', `url('${dataUrl}')`);
+		document.body.classList.add('with-custom-bg');
+	}
+
+	clearBackgroundImage() {
+		document.body.style.removeProperty('--app-bg-image');
+		document.body.classList.remove('with-custom-bg');
+	}
+
+	readFileAsDataURL(file) {
+		return new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => resolve(reader.result);
+			reader.onerror = reject;
+			reader.readAsDataURL(file);
 		});
 	}
 
@@ -324,6 +430,9 @@ class FFTerminalApp {
 		const provider = document.getElementById('chat-provider').value;
 		const model = document.getElementById('chat-model').value;
 		const apiKey = document.getElementById('chat-api-key').value;
+		// GPT-5 specific parameters
+		const reasoningEffort = document.getElementById('chat-reasoning-effort').value;
+		const verbosity = document.getElementById('chat-verbosity').value;
 
 		// Add user message to chat
 		this.addChatMessage(message, 'user');
@@ -348,7 +457,10 @@ class FFTerminalApp {
 					llm_provider: provider,
 					llm_model: model,
 					api_key: apiKey,
-					custom_system_message: customSystemMessage
+					custom_system_message: customSystemMessage,
+					// GPT-5 specific parameters
+					reasoning_effort: reasoningEffort,
+					verbosity: verbosity
 				}
 			}));
 
@@ -771,6 +883,9 @@ class FFTerminalApp {
 		const provider = document.getElementById('agent-provider').value;
 		const model = document.getElementById('agent-model').value;
 		const apiKey = document.getElementById('agent-api-key').value;
+		// GPT-5 specific parameters
+		const reasoningEffort = document.getElementById('agent-reasoning-effort').value;
+		const verbosity = document.getElementById('agent-verbosity').value;
 
 		// Reset execution tracking for new run
 		this.currentAgentExecution = null;
@@ -794,7 +909,10 @@ class FFTerminalApp {
 					llm_provider: provider,
 					llm_model: model,
 					api_key: apiKey,
-					custom_system_message: customSystemMessage
+					custom_system_message: customSystemMessage,
+					// GPT-5 specific parameters
+					reasoning_effort: reasoningEffort,
+					verbosity: verbosity
 				}
 			}));
 		} else {
@@ -1154,11 +1272,19 @@ Only return the refined prompt text, nothing else.`;
 	updateChatModels(provider) {
 		const modelSelect = document.getElementById('chat-model');
 		this.updateModelSelect(modelSelect, provider);
+		// Update GPT-5 parameter visibility for initial/default model
+		if (modelSelect.value) {
+			this.toggleGPT5Parameters('chat', modelSelect.value);
+		}
 	}
 
 	updateAgentModels(provider) {
 		const modelSelect = document.getElementById('agent-model');
 		this.updateModelSelect(modelSelect, provider);
+		// Update GPT-5 parameter visibility for initial/default model
+		if (modelSelect.value) {
+			this.toggleGPT5Parameters('agent', modelSelect.value);
+		}
 	}
 
 	updateModelSelect(selectElement, provider) {
@@ -1965,6 +2091,24 @@ Only return the refined prompt text, nothing else.`;
 				this.showToast(data.message, 'error');
 				this.isAutomationRunning = false;
 				break;
+		}
+	}
+
+	// GPT-5 Parameter Management
+	toggleGPT5Parameters(uiType, model) {
+		// Check if model is GPT-5 series
+		const isGPT5 = model.startsWith('gpt-5');
+		
+		if (uiType === 'chat') {
+			const parameters = document.querySelectorAll('.gpt5-parameters');
+			parameters.forEach(param => {
+				param.style.display = isGPT5 ? 'block' : 'none';
+			});
+		} else if (uiType === 'agent') {
+			const parameters = document.querySelectorAll('.agent-gpt5-parameters');
+			parameters.forEach(param => {
+				param.style.display = isGPT5 ? 'block' : 'none';
+			});
 		}
 	}
 }

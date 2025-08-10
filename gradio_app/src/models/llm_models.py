@@ -7,7 +7,11 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 # Comprehensive LLM model mappings for 2025
 LLM_MODELS = {
     "OpenAI": [
-        # Latest 2025 models
+        # GPT-5 series (Latest 2025)
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        # Previous 2025 models
         "gpt-4.1-mini",
         "gpt-4.1",
         "o3",
@@ -96,6 +100,7 @@ LLM_MODELS = {
 # Provider-specific model categories for better organization
 MODEL_CATEGORIES = {
     "OpenAI": {
+        "gpt5": ["gpt-5", "gpt-5-mini", "gpt-5-nano"],
         "reasoning": ["o3", "o3-pro", "o4-mini", "o4-mini-high", "o3-mini"],
         "chat": ["gpt-4.1-mini", "gpt-4.1", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
         "legacy": ["gpt-3.5-turbo"]
@@ -167,11 +172,39 @@ PROVIDER_CONFIGS = {
     }
 }
 
-def get_llm(provider: str, model: str, api_key: str = None) -> Optional[object]:
-    """Initialize LLM based on provider with support for all 2025 providers"""
+def get_llm(provider: str, model: str, api_key: str = None, reasoning_effort: str = "medium", verbosity: str = "medium") -> Optional[object]:
+    """Initialize LLM based on provider with support for all 2025 providers including GPT-5 parameters
+    
+    Args:
+        provider: The LLM provider name
+        model: The specific model to use
+        api_key: API key for authentication
+        reasoning_effort: For reasoning models - "minimal", "medium" (default), "high"
+        verbosity: For GPT-5 models - "low", "medium" (default), "high"
+    """
     try:
         if provider == "OpenAI":
-            return ChatOpenAI(model=model, api_key=SecretStr(api_key))
+            # Handle GPT-5 models with special parameters
+            if model.startswith("gpt-5"):
+                # GPT-5 uses the new Responses API with different parameter structure
+                model_kwargs = {}
+                
+                # Add reasoning effort for GPT-5
+                if reasoning_effort != "medium":
+                    model_kwargs["reasoning"] = {"effort": reasoning_effort}
+                
+                # Add verbosity for GPT-5
+                if verbosity != "medium":
+                    model_kwargs["text"] = {"verbosity": verbosity}
+                
+                return ChatOpenAI(
+                    model=model,
+                    api_key=SecretStr(api_key),
+                    model_kwargs=model_kwargs
+                )
+            else:
+                # Standard OpenAI models
+                return ChatOpenAI(model=model, api_key=SecretStr(api_key))
         
         elif provider == "Anthropic":
             return ChatAnthropic(model=model, api_key=SecretStr(api_key))
@@ -373,25 +406,25 @@ def get_recommended_models_by_task(task_type: str = "general") -> Dict[str, List
     """Get recommended models by task type"""
     recommendations = {
         "reasoning": {
-            "OpenAI": ["o3", "o3-pro", "o4-mini"],
+            "OpenAI": ["gpt-5", "o3", "o3-pro", "o4-mini"],
             "Anthropic": ["claude-4-opus", "claude-4-sonnet"],
             "DeepSeek": ["deepseek-reasoner", "deepseek-r1"],
             "Google": ["gemini-2.5-pro"]
         },
         "coding": {
-            "OpenAI": ["o3", "gpt-4.1-mini", "gpt-4.1"],
+            "OpenAI": ["gpt-5", "o3", "gpt-4.1-mini", "gpt-4.1"],
             "Anthropic": ["claude-4-sonnet", "claude-3-5-sonnet-20241022"],
             "DeepSeek": ["deepseek-chat", "deepseek-v3"],
             "Google": ["gemini-2.5-flash"]
         },
         "chat": {
-            "OpenAI": ["gpt-4.1-mini", "gpt-4.1", "gpt-4o"],
+            "OpenAI": ["gpt-5", "gpt-5-mini", "gpt-4.1-mini", "gpt-4.1", "gpt-4o"],
             "Anthropic": ["claude-4-sonnet", "claude-3-5-sonnet-20241022"],
             "Google": ["gemini-2.5-flash", "gemini-2.0-flash-exp"],
             "DeepSeek": ["deepseek-chat"]
         },
         "cost_effective": {
-            "OpenAI": ["o4-mini", "gpt-4o-mini"],
+            "OpenAI": ["gpt-5-nano", "gpt-5-mini", "o4-mini", "gpt-4o-mini"],
             "OpenRouter": ["meta-llama/llama-3.2-3b-instruct:free", "google/gemma-2-9b-it:free"],
             "Ollama": ["llama3.2", "phi3"],
             "LM Studio": ["Local models"]
@@ -404,4 +437,45 @@ def get_recommended_models_by_task(task_type: str = "general") -> Dict[str, List
 def validate_model_for_provider(provider: str, model: str) -> bool:
     """Validate if a model is available for a specific provider"""
     available_models = get_available_models(provider)
-    return model in available_models 
+    return model in available_models
+
+
+def get_gpt5_parameters() -> Dict[str, List[str]]:
+    """Get available GPT-5 specific parameters"""
+    return {
+        "reasoning_effort": ["minimal", "medium", "high"],
+        "verbosity": ["low", "medium", "high"]
+    }
+
+
+def is_gpt5_model(model: str) -> bool:
+    """Check if a model is a GPT-5 variant that supports new parameters"""
+    return model.startswith("gpt-5")
+
+
+def get_model_capabilities(provider: str, model: str) -> Dict[str, any]:
+    """Get capabilities and supported parameters for a specific model"""
+    capabilities = {
+        "supports_reasoning_effort": False,
+        "supports_verbosity": False,
+        "supports_tool_calling": True,  # Assume most models support this
+        "context_length": None,
+        "model_type": "chat"
+    }
+    
+    if provider == "OpenAI":
+        if is_gpt5_model(model):
+            capabilities["supports_reasoning_effort"] = True
+            capabilities["supports_verbosity"] = True
+            capabilities["model_type"] = "advanced_reasoning"
+            capabilities["context_length"] = 200000  # Estimated for GPT-5
+        elif model.startswith(("o3", "o4")):
+            capabilities["supports_reasoning_effort"] = True
+            capabilities["model_type"] = "reasoning"
+            capabilities["context_length"] = 128000
+        elif model.startswith("gpt-4"):
+            capabilities["context_length"] = 128000
+        elif model.startswith("gpt-3.5"):
+            capabilities["context_length"] = 16000
+    
+    return capabilities 

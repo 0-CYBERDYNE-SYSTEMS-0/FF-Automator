@@ -783,7 +783,11 @@ class ChatAgent(Agent):
 # Import the exact same models from the Gradio app
 LLM_MODELS = {
 	'OpenAI': [
-		# Latest 2025 models
+		# GPT-5 series (Latest 2025)
+		'gpt-5',
+		'gpt-5-mini',
+		'gpt-5-nano',
+		# Previous 2025 models
 		'gpt-4.1-mini',
 		'gpt-4.1',
 		'gpt-4.1-nano',
@@ -939,13 +943,40 @@ AUTOMATION_TEMPLATES = {
 }
 
 
-def get_llm(provider: str, model: str, api_key: Optional[str] = None):
-	"""Get LLM instance for the specified provider and model"""
+def get_llm(provider: str, model: str, api_key: Optional[str] = None, reasoning_effort: str = "medium", verbosity: str = "medium"):
+	"""Get LLM instance for the specified provider and model with GPT-5 parameter support
+	
+	Args:
+		provider: The LLM provider name
+		model: The specific model to use
+		api_key: API key for authentication
+		reasoning_effort: For reasoning models - "minimal", "medium" (default), "high"
+		verbosity: For GPT-5 models - "low", "medium" (default), "high"
+	"""
 	try:
 		if provider == 'OpenAI':
 			from langchain_openai import ChatOpenAI
 
-			return ChatOpenAI(model=model, api_key=api_key or os.getenv('OPENAI_API_KEY'))
+			# Handle GPT-5 models with special parameters
+			if model.startswith("gpt-5"):
+				model_kwargs = {}
+				
+				# Add reasoning effort for GPT-5
+				if reasoning_effort != "medium":
+					model_kwargs["reasoning"] = {"effort": reasoning_effort}
+				
+				# Add verbosity for GPT-5
+				if verbosity != "medium":
+					model_kwargs["text"] = {"verbosity": verbosity}
+				
+				return ChatOpenAI(
+					model=model,
+					api_key=api_key or os.getenv('OPENAI_API_KEY'),
+					model_kwargs=model_kwargs
+				)
+			else:
+				# Standard OpenAI models
+				return ChatOpenAI(model=model, api_key=api_key or os.getenv('OPENAI_API_KEY'))
 		elif provider == 'Anthropic':
 			from langchain_anthropic import ChatAnthropic
 
@@ -1264,6 +1295,9 @@ class AgentTaskRequest(BaseModel):
 	llm_model: str = 'gpt-4'
 	api_key: Optional[str] = None
 	custom_system_message: Optional[str] = None
+	# GPT-5 specific parameters
+	reasoning_effort: str = "medium"  # minimal, medium, high
+	verbosity: str = "medium"  # low, medium, high
 
 
 class ChatMessage(BaseModel):
@@ -1272,6 +1306,9 @@ class ChatMessage(BaseModel):
 	llm_model: str = 'gpt-4'
 	api_key: Optional[str] = None
 	custom_system_message: Optional[str] = None
+	# GPT-5 specific parameters
+	reasoning_effort: str = "medium"  # minimal, medium, high
+	verbosity: str = "medium"  # low, medium, high
 
 
 class SessionSaveRequest(BaseModel):
@@ -1283,6 +1320,9 @@ class ProviderTestRequest(BaseModel):
 	provider: str
 	model: str
 	api_key: Optional[str] = None
+	# GPT-5 specific parameters
+	reasoning_effort: str = "medium"  # minimal, medium, high
+	verbosity: str = "medium"  # low, medium, high
 
 
 class AutomationSaveRequest(BaseModel):
@@ -1295,6 +1335,9 @@ class AutomationSaveRequest(BaseModel):
 	tags: Optional[List[str]] = None
 	llm_provider: str = 'OpenAI'
 	llm_model: str = 'gpt-4'
+	# GPT-5 specific parameters
+	reasoning_effort: str = "medium"  # minimal, medium, high
+	verbosity: str = "medium"  # low, medium, high
 
 
 class AutomationExecuteRequest(BaseModel):
@@ -1426,7 +1469,7 @@ async def test_provider(request: ProviderTestRequest):
 		if not request.api_key and request.provider in ['OpenAI', 'Anthropic', 'Google', 'DeepSeek', 'OpenRouter']:
 			return JSONResponse(content={'success': False, 'message': 'API key required for this provider'})
 
-		llm = get_llm(request.provider, request.model, request.api_key)
+		llm = get_llm(request.provider, request.model, request.api_key, request.reasoning_effort, request.verbosity)
 
 		# Test with a simple message
 		test_response = llm.invoke("Hello, this is a connection test. Please respond with 'Test successful'.")
@@ -1837,7 +1880,7 @@ async def send_chat_message(request: ChatMessage):
 			web_app.save_api_key_to_env(request.llm_provider, request.api_key)
 
 		# Get LLM instance
-		llm = get_llm(request.llm_provider, request.llm_model, request.api_key)
+		llm = get_llm(request.llm_provider, request.llm_model, request.api_key, request.reasoning_effort, request.verbosity)
 
 		# Choose system prompt class based on whether custom message is provided
 		if request.custom_system_message:
@@ -1928,6 +1971,9 @@ async def handle_agent_task(task_data: dict, client_id: str):
 		llm_model = task_data.get('llm_model', 'gpt-4')
 		api_key = task_data.get('api_key')
 		custom_system_message = task_data.get('custom_system_message')
+		# GPT-5 specific parameters
+		reasoning_effort = task_data.get('reasoning_effort', 'medium')
+		verbosity = task_data.get('verbosity', 'medium')
 
 		# Save API key if provided
 		if api_key:
@@ -1939,7 +1985,7 @@ async def handle_agent_task(task_data: dict, client_id: str):
 		)
 
 		# Get LLM instance
-		llm = get_llm(llm_provider, llm_model, api_key)
+		llm = get_llm(llm_provider, llm_model, api_key, reasoning_effort, verbosity)
 
 		# Choose system prompt class based on whether custom message is provided
 		if custom_system_message:
@@ -2045,6 +2091,9 @@ async def handle_chat_message(message_data: dict, client_id: str):
 		llm_model = message_data.get('llm_model', 'gpt-4')
 		api_key = message_data.get('api_key')
 		custom_system_message = message_data.get('custom_system_message')
+		# GPT-5 specific parameters
+		reasoning_effort = message_data.get('reasoning_effort', 'medium')
+		verbosity = message_data.get('verbosity', 'medium')
 
 		# Save API key if provided
 		if api_key:
@@ -2067,7 +2116,7 @@ async def handle_chat_message(message_data: dict, client_id: str):
 		)
 
 		# Get LLM instance
-		llm = get_llm(llm_provider, llm_model, api_key)
+		llm = get_llm(llm_provider, llm_model, api_key, reasoning_effort, verbosity)
 
 		# Choose system prompt class based on whether custom message is provided
 		if custom_system_message:
