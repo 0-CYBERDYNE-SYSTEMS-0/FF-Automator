@@ -234,26 +234,42 @@ def create_configuration_tab(app_instance) -> List[gr.components.Component]:
 			try:
 				from ..models.llm_models import PROVIDER_CONFIGS, check_provider_availability
 
+				print("🔍 DEBUG: Creating provider dropdown in Gradio UI")
+				print(f"🔍 DEBUG: app_instance.llm_models keys: {list(app_instance.llm_models.keys())}")
+
 				provider_choices = []
 				for provider in app_instance.llm_models.keys():
-					is_available = check_provider_availability(provider)
-					config = PROVIDER_CONFIGS.get(provider, {})
+					print(f"🔍 DEBUG: Processing provider: {provider}")
+					try:
+						is_available = check_provider_availability(provider)
+						config = PROVIDER_CONFIGS.get(provider, {})
+						print(f"🔍 DEBUG: {provider} - available: {is_available}, config: {bool(config)}")
 
-					# Add status indicators
-					if config.get('local_provider'):
-						status = '💻 ' if is_available else '⚫ '
-						provider_display = f'{status}{provider} (Local)'
-					elif config.get('free_models_available'):
-						status = '✅ ' if is_available else '❌ '
-						provider_display = f'{status}{provider} (Free Options)'
-					else:
-						status = '✅ ' if is_available else '❌ '
-						provider_display = f'{status}{provider}'
+						# Add status indicators
+						if config.get('local_provider'):
+							status = '💻 ' if is_available else '⚫ '
+							provider_display = f'{status}{provider} (Local)'
+						elif config.get('free_models_available'):
+							status = '✅ ' if is_available else '❌ '
+							provider_display = f'{status}{provider} (Free Options)'
+						else:
+							status = '✅ ' if is_available else '❌ '
+							provider_display = f'{status}{provider}'
 
-					provider_choices.append((provider_display, provider))
-			except ImportError:
+						provider_choices.append((provider_display, provider))
+						print(f"🔍 DEBUG: Added provider choice: '{provider_display}' -> '{provider}'")
+					except Exception as e:
+						print(f"🔍 DEBUG: Error processing {provider}: {e}")
+
+				print(f"🔍 DEBUG: Final provider_choices ({len(provider_choices)}): {provider_choices}")
+			except Exception as e:
+				print(f"🔍 DEBUG: Exception in provider creation: {e}")
+				import traceback
+				traceback.print_exc()
 				# Fallback if imports fail
+				print("🔍 DEBUG: Using fallback provider list")
 				provider_choices = [(provider, provider) for provider in app_instance.llm_models.keys()]
+				print(f"🔍 DEBUG: Fallback provider_choices: {provider_choices}")
 
 			llm_provider = gr.Dropdown(
 				choices=provider_choices,
@@ -400,6 +416,7 @@ def _get_provider_info_html(provider: str) -> str:
 		'OpenRouter': '🌐 Access to 400+ models. <strong>Dynamic loading:</strong> With API key, all models are fetched live. Without API key, shows 12 popular models. Click refresh (🔄) to reload.',
 		'Ollama': '💻 Local models. <strong>Dynamic loading:</strong> Shows your actual installed models. Click refresh (🔄) after installing new models.',
 		'LM Studio': '🖥️ Local models. <strong>Dynamic loading:</strong> Shows loaded models from your LM Studio instance.',
+		'Z.AI': '🤖 GLM-4.5 and GLM-4.5-Air models with Vision capabilities. <strong>Vision MCP:</strong> Screen analysis and UI automation. <strong>Prompt Caching:</strong> 90% cost reduction. Compatible with Claude/OpenAI model names.',
 	}
 
 	info = provider_info.get(provider, 'Select a provider to see information.')
@@ -419,6 +436,14 @@ def _get_model_recommendations_html(provider: str, model: str) -> str:
 		'gemini-2.5-flash': '⚡ Very fast, good for quick tasks',
 		'deepseek-reasoner': '🧠 Excellent for step-by-step reasoning',
 		'deepseek-chat': '💬 Great general purpose model, cost-effective',
+		# Z.AI model recommendations
+		'GLM-4.5': '🤖 High-performance GLM model with Vision capabilities. Best for complex tasks.',
+		'glm-4.5': '🤖 High-performance GLM model with Vision capabilities. Best for complex tasks.',
+		'GLM-4.5-Air': '⚡ Fast and cost-effective GLM model. Great for quick tasks and automation.',
+		'glm-4.5-air': '⚡ Fast and cost-effective GLM model. Great for quick tasks and automation.',
+		'claude-3-5-sonnet-20241022': '🤖 Maps to GLM-4.5. Use Z.AI\'s high-performance model with Claude compatibility.',
+		'claude-3-5-haiku-20241022': '⚡ Maps to GLM-4.5-Air. Fast model with Claude compatibility.',
+		'gpt-4': '🤖 Maps to GLM-4.5. Use Z.AI\'s high-performance model with OpenAI compatibility.',
 	}
 
 	if model in recommendations:
@@ -436,6 +461,7 @@ def _get_api_help_html(provider: str) -> str:
 		'OpenRouter': "<a href='https://openrouter.ai/keys' target='_blank'>Get OpenRouter API Key</a>",
 		'Ollama': "<a href='https://ollama.ai/' target='_blank'>Install Ollama</a>",
 		'LM Studio': "<a href='https://lmstudio.ai/' target='_blank'>Download LM Studio</a>",
+		'Z.AI': "<a href='https://z.ai/manage-apikey/apikey-list' target='_blank'>Get Z.AI API Key</a><br><small>Vision MCP requires Node.js/npm</small>",
 	}
 
 	link = api_links.get(provider, '')

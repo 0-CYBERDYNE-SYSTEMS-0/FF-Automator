@@ -94,6 +94,28 @@ LLM_MODELS = {
     "LM Studio": [
         # Will be populated dynamically from local LM Studio instance
         "Available models will be detected from local LM Studio server"
+    ],
+    "Z.AI": [
+        # GLM-4.5 series (High-performance models)
+        "GLM-4.5",
+        "glm-4.5",
+        # GLM-4.5-Air series (Faster, cost-effective models)
+        "GLM-4.5-Air",
+        "glm-4.5-air",
+        # GLM-4.6 model (Latest model)
+        "glm-4.6",
+        "GLM-4.6",
+        # Claude model compatibility (automatically mapped to GLM equivalents)
+        "claude-3-5-sonnet-20241022",  # Maps to GLM-4.5
+        "claude-3-5-haiku-20241022",   # Maps to GLM-4.5-Air
+        "claude-3-opus",               # Maps to GLM-4.5
+        "claude-3-sonnet",             # Maps to GLM-4.5
+        "claude-3-haiku",              # Maps to GLM-4.5-Air
+        # OpenAI model compatibility (automatically mapped)
+        "gpt-4",                       # Maps to GLM-4.5
+        "gpt-4-turbo",                 # Maps to GLM-4.5
+        "gpt-3.5-turbo",               # Maps to GLM-4.5-Air
+        "gpt-5-mini"                   # Maps to GLM-4.5-Air
     ]
 }
 
@@ -118,6 +140,13 @@ MODEL_CATEGORIES = {
     "DeepSeek": {
         "latest": ["deepseek-chat", "deepseek-reasoner"],
         "specific": ["deepseek-v3", "deepseek-r1"]
+    },
+    "Z.AI": {
+        "glm_4_6": ["GLM-4.6", "glm-4.6"],
+        "glm_4_5": ["GLM-4.5", "glm-4.5"],
+        "glm_4_5_air": ["GLM-4.5-Air", "glm-4.5-air"],
+        "claude_compatible": ["claude-3-5-sonnet-20241022", "claude-3-opus", "claude-3-sonnet"],
+        "openai_compatible": ["gpt-4", "gpt-4-turbo"]
     }
 }
 
@@ -163,12 +192,35 @@ PROVIDER_CONFIGS = {
         "default_port": 11434
     },
     "LM Studio": {
-        "base_url": "http://localhost:1234/v1", 
+        "base_url": "http://localhost:1234/v1",
         "api_key_env": None,
         "requires_auth": False,
         "openai_compatible": True,
         "local_provider": True,
         "default_port": 1234
+    },
+    "Z.AI": {
+        "base_url": "https://open.bigmodel.cn/api/anthropic/v1",
+        "api_key_env": "ANTHROPIC_AUTH_TOKEN",
+        "vision_api_key_env": "Z_AI_API_KEY",
+        "requires_auth": True,
+        "openai_compatible": False,
+        "anthropic_compatible": True,
+        "supports_vision": True,
+        "supports_prompt_caching": True,
+        "model_mapping": {
+            "claude-3-5-sonnet-20241022": "GLM-4.6",
+            "claude-3-5-haiku-20241022": "GLM-4.5-Air",
+            "claude-3-opus": "GLM-4.6",
+            "claude-3-sonnet": "GLM-4.6",
+            "claude-3-haiku": "GLM-4.5-Air",
+            "gpt-4": "GLM-4.6",
+            "gpt-4-turbo": "GLM-4.6",
+            "gpt-3.5-turbo": "GLM-4.5-Air",
+            "gpt-5-mini": "GLM-4.5-Air",
+            "glm-4.6": "GLM-4.6",
+            "GLM-4.6": "GLM-4.6"
+        }
     }
 }
 
@@ -264,7 +316,39 @@ def get_llm(provider: str, model: str, api_key: str = None, reasoning_effort: st
                 api_key=SecretStr("lm-studio"),  # Dummy key for compatibility
                 base_url="http://localhost:1234/v1"
             )
-        
+
+        elif provider == "Z.AI":
+            # Z.AI uses Anthropic-compatible API with GLM models
+            import os
+
+            # Get API key with fallback chain
+            zai_api_key = api_key or os.getenv("ANTHROPIC_AUTH_TOKEN")
+            if not zai_api_key:
+                raise ValueError("Z.AI requires ANTHROPIC_AUTH_TOKEN environment variable or api_key parameter")
+
+            # Get base URL with fallback
+            base_url = os.getenv("ANTHROPIC_BASE_URL", "https://open.bigmodel.cn/api/anthropic/v1")
+
+            # Map model names to GLM equivalents
+            config = PROVIDER_CONFIGS["Z.AI"]
+            model_mapping = config.get("model_mapping", {})
+            zai_model = model_mapping.get(model, model)
+
+            # Ensure we're using a valid GLM model name
+            if not zai_model.startswith("GLM-"):
+                # Default to GLM-4.6 for unmapped models
+                zai_model = "GLM-4.6"
+
+            return ChatAnthropic(
+                model=zai_model,
+                api_key=SecretStr(zai_api_key),
+                base_url=base_url,
+                default_headers={
+                    "HTTP-Referer": "https://github.com/macOS-use/macOS-use",
+                    "X-Title": "macOS-use Agent"
+                }
+            )
+
         else:
             raise ValueError(f"Unsupported provider: {provider}")
             
@@ -303,6 +387,27 @@ def check_provider_availability(provider: str) -> bool:
                 print(f"OpenRouter availability check failed: {e}")
                 return False
     
+    # Check Z.AI provider specifically
+    if provider == "Z.AI":
+        try:
+            api_key = os.getenv("ANTHROPIC_AUTH_TOKEN")
+            if not api_key:
+                return False
+
+            # Test Z.AI API connectivity
+            base_url = os.getenv("ANTHROPIC_BASE_URL", "https://open.bigmodel.cn/api/anthropic/v1")
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            # Test with a simple messages endpoint call
+            response = requests.get(f"{base_url}/models", headers=headers, timeout=10)
+            # Z.AI may not have a models endpoint, so we'll consider any non-401 response as available
+            return response.status_code != 401
+        except Exception as e:
+            print(f"Z.AI availability check failed: {e}")
+            return False
+
     # Check local providers (Ollama, LM Studio)
     if config.get("local_provider"):
         try:
@@ -316,7 +421,7 @@ def check_provider_availability(provider: str) -> bool:
                 return response.status_code == 200
         except:
             return False
-    
+
     return True
 
 
@@ -477,5 +582,27 @@ def get_model_capabilities(provider: str, model: str) -> Dict[str, any]:
             capabilities["context_length"] = 128000
         elif model.startswith("gpt-3.5"):
             capabilities["context_length"] = 16000
-    
+
+    elif provider == "Z.AI":
+        if model.startswith("GLM-4.6"):
+            capabilities["context_length"] = 128000
+            capabilities["model_type"] = "glm"
+            capabilities["model_class"] = "advanced"
+        elif model.startswith("GLM-4.5"):
+            capabilities["context_length"] = 128000
+            capabilities["model_type"] = "glm"
+            if model.endswith("-Air"):
+                capabilities["model_class"] = "fast"
+            else:
+                capabilities["model_class"] = "standard"
+        # Mapped models inherit GLM capabilities
+        elif model in ["claude-3-5-sonnet-20241022", "claude-3-opus", "claude-3-sonnet"]:
+            capabilities["context_length"] = 128000
+            capabilities["model_type"] = "glm"
+            capabilities["model_class"] = "advanced"
+        elif model in ["claude-3-5-haiku-20241022", "claude-3-haiku", "gpt-3.5-turbo", "gpt-5-mini"]:
+            capabilities["context_length"] = 128000
+            capabilities["model_type"] = "glm"
+            capabilities["model_class"] = "fast"
+
     return capabilities 

@@ -4,11 +4,17 @@ import {ui} from '../models';
 import {context} from '../models';
 import {backend} from '../models';
 
+export function AddContextBucketItem(arg1:ui.ContextBucketItem):Promise<void>;
+
 export function AddTask(arg1:string):Promise<void>;
+
+export function ClearContextBucket():Promise<void>;
 
 export function CreateAutomationFromTemplate(arg1:string,arg2:Record<string, any>):Promise<void>;
 
 export function DeleteAutomation(arg1:string):Promise<void>;
+
+export function DeleteContextBucketItem(arg1:string):Promise<void>;
 
 export function DeleteSession(arg1:string):Promise<void>;
 
@@ -17,6 +23,8 @@ export function DuplicateAutomation(arg1:string,arg2:string):Promise<void>;
 export function ExecuteAutomation(arg1:string,arg2:Record<string, any>):Promise<void>;
 
 export function ExecuteAutomationViaWebSocket(arg1:string,arg2:Record<string, any>):Promise<void>;
+
+export function ExportContextBucket():Promise<Array<number>>;
 
 export function GetAutomation(arg1:string):Promise<ui.Automation>;
 
@@ -30,11 +38,19 @@ export function GetAutomationTemplates():Promise<Array<ui.AutomationTemplate>>;
 
 export function GetAutomations():Promise<Array<ui.Automation>>;
 
+export function GetBackendURL():Promise<string>;
+
+export function GetContextBucketItems():Promise<Array<ui.ContextBucketItem>>;
+
+export function GetContextBucketSummary():Promise<ui.ContextBucketSummary>;
+
 export function GetProviders():Promise<Array<ui.Provider>>;
 
 export function GetScheduledAutomations():Promise<Array<ui.ScheduledAutomation>>;
 
 export function GetSessions():Promise<Array<ui.Session>>;
+
+export function ImportContextBucket(arg1:Array<number>):Promise<void>;
 
 export function InterruptChat():Promise<void>;
 

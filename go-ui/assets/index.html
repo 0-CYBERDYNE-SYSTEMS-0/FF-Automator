@@ -1,258 +1,686 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>macOS-use</title>
-    <link rel="stylesheet" href="styles.css">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>macOS-use Desktop</title>
+	<link rel="stylesheet" href="styles.css">
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div id="app">
-        <div class="sidebar">
-            <div class="logo">
-                <h1>macOS-use</h1>
-                <p class="tagline">Natural language control for macOS</p>
-            </div>
-            
-            <div class="provider-selector">
-                <label for="provider">Provider:</label>
-                <select id="provider">
-                    <option value="">Loading...</option>
-                </select>
-                
-                <label for="model">Model:</label>
-                <select id="model">
-                    <option value="">Select provider first</option>
-                </select>
-                
-                <button id="test-provider" class="btn-small" title="Test Provider Connection">🔍 Test</button>
-            </div>
-            
-            <div class="mode-selector">
-                <button class="mode-btn active" data-mode="chat">💬 Chat Mode</button>
-                <button class="mode-btn" data-mode="agent">🤖 Agent Mode</button>
-                <button class="mode-btn" data-mode="templates">📋 Templates</button>
-                <button class="mode-btn" data-mode="scheduler">⏰ Scheduler</button>
-            </div>
-            
-            <div class="session-controls">
-                <h3>Sessions</h3>
-                <button id="save-session" class="btn-secondary">💾 Save Session</button>
-                <select id="session-list">
-                    <option value="">No saved sessions</option>
-                </select>
-                <button id="load-session" class="btn-secondary">📂 Load Session</button>
-            </div>
-            
-            <div class="automation-controls">
-                <h3>Automations</h3>
-                <div class="automation-search">
-                    <input type="text" id="automation-search" placeholder="Search automations...">
-                    <select id="category-filter">
-                        <option value="">All Categories</option>
-                    </select>
-                </div>
-                <button id="save-automation" class="btn-secondary">🤖 Save as Automation</button>
-                <select id="automation-list">
-                    <option value="">No saved automations</option>
-                </select>
-                <div class="automation-actions">
-                    <button id="run-automation" class="btn-secondary">▶️ Run</button>
-                    <button id="duplicate-automation" class="btn-secondary">📋 Duplicate</button>
-                    <button id="view-history" class="btn-secondary">📊 History</button>
-                </div>
-            </div>
-            
-            <div class="status-indicator">
-                <div class="status-dot" id="connection-status"></div>
-                <span id="status-text">Connecting...</span>
-            </div>
-        </div>
-        
-        <div class="main-content">
-            <div id="chat-view" class="view active">
-                <div class="chat-container">
-                    <div class="chat-header">
-                        <div class="chat-controls">
-                            <button id="interrupt-chat" class="btn-warning" style="display: none;">⏹️ Interrupt</button>
-                            <button id="redirect-chat" class="btn-warning" style="display: none;">🔄 Redirect</button>
-                            <button id="add-task" class="btn-secondary" style="display: none;">➕ Add Task</button>
-                        </div>
-                        <div class="chat-settings">
-                            <button id="refine-prompt" class="btn-small">✨ Refine Prompt</button>
-                            <button id="custom-system" class="btn-small">⚙️ Custom System</button>
-                        </div>
-                    </div>
-                    <div id="chat-messages" class="messages"></div>
-                    <div class="input-area">
-                        <textarea id="chat-input" placeholder="Type your message..." rows="3"></textarea>
-                        <button id="send-btn" class="btn-primary">Send</button>
-                        <button id="stop-btn" class="btn-danger" style="display: none;">Stop</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="agent-view" class="view">
-                <div class="terminal-container">
-                    <div id="terminal-output" class="terminal"></div>
-                    <div class="input-area">
-                        <input type="text" id="agent-input" placeholder="Enter task...">
-                        <button id="execute-btn" class="btn-primary">Execute</button>
-                        <button id="stop-agent-btn" class="btn-danger" style="display: none;">Stop</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="templates-view" class="view">
-                <div class="templates-container">
-                    <div class="templates-header">
-                        <h2>Automation Templates</h2>
-                        <p>Create automations from pre-built templates</p>
-                    </div>
-                    <div id="template-grid" class="template-grid"></div>
-                </div>
-            </div>
-            
-            <div id="scheduler-view" class="view">
-                <div class="scheduler-container">
-                    <div class="scheduler-header">
-                        <h2>Automation Scheduler</h2>
-                        <p>Manage scheduled automations</p>
-                    </div>
-                    <div class="scheduler-controls">
-                        <button id="refresh-scheduled" class="btn-secondary">🔄 Refresh</button>
-                        <button id="add-schedule" class="btn-primary">➕ Add Schedule</button>
-                    </div>
-                    <div id="scheduled-list" class="scheduled-list"></div>
-                </div>
-            </div>
-            
-            <div id="log-panel" class="log-panel">
-                <div class="log-header">
-                    <h3>Backend Logs</h3>
-                    <button id="toggle-logs" class="btn-small">▼</button>
-                </div>
-                <div id="log-content" class="log-content"></div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Modal for custom system message -->
-    <div id="system-message-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Custom System Message</h3>
-                <span class="close" id="close-system-modal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <textarea id="system-message-input" placeholder="Enter custom system message..." rows="10"></textarea>
-            </div>
-            <div class="modal-footer">
-                <button id="save-system-message" class="btn-primary">Save</button>
-                <button id="cancel-system-message" class="btn-secondary">Cancel</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Modal for template creation -->
-    <div id="template-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Create from Template</h3>
-                <span class="close" id="close-template-modal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="template-form"></div>
-            </div>
-            <div class="modal-footer">
-                <button id="create-from-template" class="btn-primary">Create Automation</button>
-                <button id="cancel-template" class="btn-secondary">Cancel</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Modal for scheduling -->
-    <div id="schedule-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Schedule Automation</h3>
-                <span class="close" id="close-schedule-modal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="schedule-automation">Automation:</label>
-                    <select id="schedule-automation">
-                        <option value="">Select automation...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="cron-expression">Cron Expression:</label>
-                    <input type="text" id="cron-expression" placeholder="0 9 * * 1-5">
-                    <small>Examples: "0 9 * * 1-5" (9 AM weekdays), "0 */2 * * *" (every 2 hours)</small>
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="schedule-enabled" checked>
-                        Enabled
-                    </label>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="save-schedule" class="btn-primary">Save Schedule</button>
-                <button id="cancel-schedule" class="btn-secondary">Cancel</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Modal for automation history -->
-    <div id="history-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Automation History</h3>
-                <span class="close" id="close-history-modal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="history-content"></div>
-            </div>
-            <div class="modal-footer">
-                <button id="close-history" class="btn-secondary">Close</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Modal for prompt refinement -->
-    <div id="refine-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Refine Prompt</h3>
-                <span class="close" id="close-refine-modal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="original-prompt">Original Prompt:</label>
-                    <textarea id="original-prompt" rows="4" readonly></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="refined-prompt">Refined Prompt:</label>
-                    <textarea id="refined-prompt" rows="6" readonly></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="use-refined-prompt" class="btn-primary">Use Refined Prompt</button>
-                <button id="cancel-refine" class="btn-secondary">Cancel</button>
-            </div>
-        </div>
-    </div>
-    
-    <script src="/wails/runtime.js"></script>
-    <script>
-        // Debug Wails runtime loading
-        console.log('Wails runtime loaded:', !!window.runtime);
-        console.log('Wails Go bindings:', !!window.go);
-        if (window.go) {
-            console.log('Go UI App available:', !!window.go.ui?.App);
-        }
-    </script>
-    <script src="app.js"></script>
+	<div id="app">
+		<!-- Loading Screen -->
+		<div id="loading-screen" class="loading-screen">
+			<div class="loading-content">
+				<div class="loading-spinner"></div>
+				<h2>Initializing macOS-use Desktop</h2>
+				<p>Setting up your elegant interface...</p>
+			</div>
+		</div>
+
+		<!-- Main Application -->
+		<div id="main-app" class="main-app hidden">
+			<!-- Header -->
+			<header class="app-header">
+				<div class="header-content">
+					<div class="header-left">
+						<div class="app-logo">
+							<i class="fas fa-desktop"></i>
+							<span>macOS-use Desktop</span>
+						</div>
+					</div>
+					<div class="header-center">
+						<nav class="main-nav">
+							<button class="nav-btn active" data-tab="chat">
+								<i class="fas fa-comments"></i>
+								Chat
+							</button>
+							<button class="nav-btn" data-tab="agent">
+								<i class="fas fa-robot"></i>
+								Agent
+							</button>
+							<button class="nav-btn" data-tab="sessions">
+								<i class="fas fa-history"></i>
+								Sessions
+							</button>
+							<button class="nav-btn" data-tab="automations">
+								<i class="fas fa-magic"></i>
+								Automations
+							</button>
+							<button class="nav-btn" data-tab="providers">
+								<i class="fas fa-cogs"></i>
+								Providers
+							</button>
+						</nav>
+					</div>
+					<div class="header-right">
+						<button id="theme-toggle" class="btn btn-secondary btn-sm" type="button" title="Toggle light/dark mode">
+							<i class="fas fa-moon"></i>
+						</button>
+						<div class="connection-status" id="connection-status">
+							<i class="fas fa-circle"></i>
+							<span>Connected</span>
+						</div>
+					</div>
+				</div>
+			</header>
+
+			<!-- Main Content -->
+			<main class="app-main">
+				<!-- Chat Tab -->
+				<div id="chat-tab" class="tab-content active">
+					<div class="chat-layout">
+						<div class="chat-sidebar">
+							<div class="chat-controls">
+								<h3>
+									Saved Automations
+									<i class="fas fa-info-circle help-icon" title="Right-click any automation to save it for quick access"></i>
+								</h3>
+								<div class="automation-categories">
+									<div class="category-tabs">
+										<button class="category-tab active" data-category="Quick Tasks">Quick</button>
+										<button class="category-tab" data-category="Multi-Step Workflows">Workflows</button>
+										<button class="category-tab" data-category="Productivity Automations">Productivity</button>
+									</div>
+									<div id="automation-list" class="automation-list">
+										<div class="loading-automations">
+											<i class="fas fa-spinner fa-spin"></i>
+											Loading automations...
+										</div>
+									</div>
+								</div>
+
+								<!-- Context Bucket Section -->
+								<div class="context-bucket-section">
+									<h3>
+										Context Bucket
+										<i class="fas fa-info-circle help-icon" title="Add persistent context that the AI will reference across conversations"></i>
+										<button id="toggle-context-bucket" class="btn-icon-small" title="Toggle context bucket">
+											<i class="fas fa-chevron-down"></i>
+										</button>
+									</h3>
+									<div id="context-bucket-content" class="context-bucket-content">
+										<div class="context-bucket-actions">
+											<button id="add-context-btn" class="btn btn-sm btn-primary">
+												<i class="fas fa-plus"></i> Add
+											</button>
+											<button id="clear-context-btn" class="btn btn-sm btn-secondary">
+												<i class="fas fa-trash"></i> Clear
+											</button>
+											<button id="export-context-btn" class="btn btn-sm btn-secondary">
+												<i class="fas fa-download"></i> Export
+											</button>
+											<button id="import-context-btn" class="btn btn-sm btn-secondary">
+												<i class="fas fa-upload"></i> Import
+											</button>
+										</div>
+										<div class="context-bucket-stats">
+											<div class="token-usage">
+												<span class="token-label">Tokens:</span>
+												<span id="context-tokens-used">0</span> / <span id="context-tokens-max">8000</span>
+												<div class="token-progress">
+													<div id="token-progress-bar" class="token-progress-bar" style="width: 0%"></div>
+												</div>
+											</div>
+										</div>
+										<div id="context-bucket-items" class="context-bucket-items">
+											<div class="empty-context">
+												<i class="fas fa-folder-open"></i>
+												<p>No context items yet. Add documents, instructions, or references.</p>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div class="chat-settings">
+									<h3>
+										Settings
+										<i class="fas fa-info-circle help-icon" title="Configure your chat preferences"></i>
+									</h3>
+									<div class="setting-group">
+										<label>Provider:</label>
+										<select id="chat-provider" class="setting-select">
+											<option value="OpenAI">OpenAI</option>
+										</select>
+									</div>
+									<div class="setting-group">
+										<label>Model:</label>
+										<select id="chat-model" class="setting-select">
+											<option value="gpt-4">GPT-4</option>
+										</select>
+									</div>
+									<div class="setting-group">
+										<label>API Key:</label>
+										<input type="password" id="chat-api-key" class="setting-input" placeholder="Enter API key...">
+									</div>
+									<div class="setting-group gpt5-parameters" style="display: none;">
+										<label>
+											Reasoning Effort:
+											<i class="fas fa-brain help-icon" title="Control how thoroughly GPT-5 thinks about its responses. 'Minimal' for faster responses, 'High' for deeper reasoning."></i>
+										</label>
+										<select id="chat-reasoning-effort" class="setting-select">
+											<option value="minimal">Minimal</option>
+											<option value="medium" selected>Medium</option>
+											<option value="high">High</option>
+										</select>
+									</div>
+									<div class="setting-group gpt5-parameters" style="display: none;">
+										<label>
+											Verbosity:
+											<i class="fas fa-comment help-icon" title="Control response length and detail level. 'Low' for concise answers, 'High' for detailed explanations."></i>
+										</label>
+										<select id="chat-verbosity" class="setting-select">
+											<option value="low">Low</option>
+											<option value="medium" selected>Medium</option>
+											<option value="high">High</option>
+										</select>
+									</div>
+									<div class="setting-group">
+										<label>
+											Custom Instructions:
+											<i class="fas fa-question-circle help-icon" title="Add custom instructions that will be appended to the assistant's system prompt. Examples: 'Be concise', 'Use emoji', 'Explain each step'"></i>
+										</label>
+										<textarea id="chat-custom-system" class="setting-textarea" placeholder="Enter custom instructions for the assistant..." rows="4"></textarea>
+									</div>
+								<div class="setting-group">
+									<label>
+										Background Image:
+										<i class="fas fa-image help-icon" title="Upload an image to use as the app background. Stored locally in your browser."></i>
+									</label>
+									<input type="file" id="bg-image-input" class="setting-input" accept="image/*">
+									<div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+										<button id="bg-clear-btn" class="btn btn-secondary btn-sm" type="button">
+											<i class="fas fa-ban"></i> Clear Background
+										</button>
+									</div>
+									<small class="text-muted">Your image never leaves this device. You can change or clear it anytime.</small>
+								</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="chat-main">
+							<div class="chat-header">
+								<h2>AI Assistant Chat</h2>
+								<div class="chat-actions">
+									<button id="clear-chat-btn" class="btn btn-secondary">
+										<i class="fas fa-trash"></i>
+										Clear
+									</button>
+									<button id="save-chat-btn" class="btn btn-primary">
+										<i class="fas fa-save"></i>
+										Save
+									</button>
+								</div>
+							</div>
+
+							<div id="chat-messages" class="chat-messages">
+								<div class="welcome-message">
+									<div class="welcome-content">
+										<i class="fas fa-robot"></i>
+										<h3>Welcome to macOS-use Desktop!</h3>
+										<p>I'm your AI assistant for automating macOS tasks. You can:</p>
+										<ul>
+											<li>Ask me to control applications and perform tasks</li>
+											<li>Use natural language to describe what you want to do</li>
+											<li>Try quick actions from the sidebar</li>
+											<li>Save and load conversation sessions</li>
+										</ul>
+										<p>How can I help you today?</p>
+									</div>
+								</div>
+							</div>
+
+							<div class="chat-input-area">
+								<div class="chat-input-container">
+									<input type="text" id="chat-input" placeholder="Type your message or describe a task..." autocomplete="off">
+									<button id="send-chat-btn" class="send-btn">
+										<i class="fas fa-paper-plane"></i> Send
+									</button>
+									<button id="stop-chat-btn" class="stop-btn" disabled>
+										<i class="fas fa-stop"></i> Stop
+									</button>
+									<button id="interrupt-chat-btn" class="interrupt-btn" disabled>
+										<i class="fas fa-pause"></i> Interrupt
+									</button>
+									<button id="redirect-chat-btn" class="redirect-btn" disabled>
+										<i class="fas fa-route"></i> Redirect
+									</button>
+								</div>
+								<div class="input-hints">
+									<span class="hint">💡 Try: "Open Calculator and compute 15 * 23"</span>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Agent Tab -->
+				<div id="agent-tab" class="tab-content">
+					<div class="agent-layout">
+						<div class="agent-form">
+							<div class="form-header">
+								<h2>
+									Agent Task Execution
+									<i class="fas fa-info-circle help-icon" title="Create detailed automation tasks with specific parameters"></i>
+								</h2>
+							</div>
+
+							<div class="form-content">
+								<div class="form-group">
+									<label for="agent-task">
+										Task Description
+										<i class="fas fa-question-circle help-icon" title="Describe the task you want the agent to perform in detail"></i>
+									</label>
+									<textarea id="agent-task" placeholder="Describe the task you want to automate..." rows="4"></textarea>
+									<button id="refine-task-btn" class="btn btn-secondary btn-sm">
+										<i class="fas fa-magic"></i>
+										Refine with AI
+									</button>
+								</div>
+
+								<div class="form-row">
+									<div class="form-group">
+										<label for="max-steps">
+											Max Steps
+											<i class="fas fa-question-circle help-icon" title="Maximum number of steps the agent can take to complete the task"></i>
+										</label>
+										<input type="number" id="max-steps" value="100" min="1" max="1000">
+									</div>
+									<div class="form-group">
+										<label for="max-actions">
+											Max Actions per Step
+											<i class="fas fa-question-circle help-icon" title="Maximum number of actions the agent can perform in each step"></i>
+										</label>
+										<input type="number" id="max-actions" value="10" min="1" max="50">
+									</div>
+								</div>
+
+								<div class="form-row">
+									<div class="form-group">
+										<label for="agent-provider">
+											Provider
+											<i class="fas fa-question-circle help-icon" title="Choose your AI provider. OpenAI, Anthropic, and Google have the best tool support for automation."></i>
+										</label>
+										<select id="agent-provider" class="form-select">
+											<option value="OpenAI">OpenAI</option>
+										</select>
+									</div>
+									<div class="form-group">
+										<label for="agent-model">
+											Model
+											<i class="fas fa-question-circle help-icon" title="For OpenRouter: Models with ✓ support tool use. Models marked (Free) don't require credits."></i>
+										</label>
+										<select id="agent-model" class="form-select">
+											<option value="gpt-4">GPT-4</option>
+										</select>
+									</div>
+								</div>
+
+								<div class="form-group">
+									<label for="agent-api-key">API Key</label>
+									<input type="password" id="agent-api-key" placeholder="Enter API key...">
+								</div>
+								<div class="form-row agent-gpt5-parameters" style="display: none;">
+									<div class="form-group">
+										<label for="agent-reasoning-effort">
+											Reasoning Effort
+											<i class="fas fa-brain help-icon" title="Control how thoroughly GPT-5 reasons. 'High' provides better results for complex tasks."></i>
+										</label>
+										<select id="agent-reasoning-effort" class="form-select">
+											<option value="minimal">Minimal</option>
+											<option value="medium" selected>Medium</option>
+											<option value="high">High</option>
+										</select>
+									</div>
+									<div class="form-group">
+										<label for="agent-verbosity">
+											Verbosity
+											<i class="fas fa-comment help-icon" title="Control response detail. 'High' provides more detailed explanations of actions."></i>
+										</label>
+										<select id="agent-verbosity" class="form-select">
+											<option value="low">Low</option>
+											<option value="medium" selected>Medium</option>
+											<option value="high">High</option>
+										</select>
+									</div>
+								</div>
+
+								<div class="form-group">
+									<label for="agent-custom-system">
+										Custom Instructions
+										<i class="fas fa-question-circle help-icon" title="Add custom instructions that will be appended to the agent's system prompt. Examples: 'Be verbose in logs', 'Try alternative methods if stuck', 'Minimize clicks'"></i>
+									</label>
+									<textarea id="agent-custom-system" class="form-control" placeholder="Enter custom instructions for the agent..." rows="4"></textarea>
+								</div>
+
+								<!-- Context Bucket Section -->
+								<div class="form-group context-bucket-section">
+									<label for="agent-context-session">
+										Context Bucket
+										<i class="fas fa-question-circle help-icon" title="Manage persistent context information that will be available to the agent across sessions"></i>
+									</label>
+									<div class="context-bucket-controls">
+										<div class="form-row">
+											<div class="form-col">
+												<input type="text" id="agent-context-session" class="form-control" value="agent_session" placeholder="Session ID for context">
+											</div>
+											<div class="form-col">
+												<button id="manage-agent-context-btn" class="btn btn-secondary">
+													<i class="fas fa-cog"></i>
+													Manage Context
+												</button>
+											</div>
+										</div>
+										<div class="context-summary" id="agent-context-summary">
+											<span class="context-count">0 context items</span>
+											<span class="context-tokens">0 tokens</span>
+										</div>
+									</div>
+								</div>
+
+								<div class="form-actions">
+									<button id="run-agent-btn" class="btn btn-primary btn-lg">
+										<i class="fas fa-play"></i>
+										Run Agent
+									</button>
+									<button id="stop-agent-btn" class="btn btn-danger" disabled>
+										<i class="fas fa-stop"></i>
+										Stop
+									</button>
+									<button id="save-agent-automation-btn" class="btn btn-success" disabled>
+										<i class="fas fa-save"></i>
+										Save as Automation
+									</button>
+								</div>
+							</div>
+						</div>
+
+						<div class="agent-output">
+							<div class="output-header">
+								<h3>Agent Execution</h3>
+								<div class="execution-status" id="execution-status">
+									<span class="status-text">Ready</span>
+								</div>
+							</div>
+
+							<div class="output-content">
+								<div id="agent-progress" class="progress-section hidden">
+									<div class="progress-info">
+										<span id="progress-text">Initializing...</span>
+										<span id="progress-step">Step 0 / 100</span>
+									</div>
+									<div class="progress-bar">
+										<div id="progress-fill" class="progress-fill"></div>
+									</div>
+								</div>
+
+								<div id="agent-terminal" class="terminal-output">
+									<div class="terminal-header">
+										<span>Terminal Output</span>
+										<button id="clear-terminal-btn" class="btn btn-sm btn-secondary">
+											<i class="fas fa-trash"></i>
+										</button>
+									</div>
+									<div id="terminal-content" class="terminal-content">
+										<p class="terminal-ready">Ready to execute agent tasks...</p>
+									</div>
+								</div>
+
+								<div id="agent-result" class="result-section hidden">
+									<h4>Final Result</h4>
+									<div id="result-content" class="result-content"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Sessions Tab -->
+				<div id="sessions-tab" class="tab-content">
+					<div class="sessions-layout">
+						<div class="sessions-header">
+							<h2>
+								Session Management
+								<i class="fas fa-info-circle help-icon" title="Save, load, and manage your conversation sessions"></i>
+							</h2>
+							<button id="refresh-sessions-btn" class="btn btn-secondary">
+								<i class="fas fa-sync"></i>
+								Refresh
+							</button>
+						</div>
+
+						<div class="sessions-content">
+							<div class="session-actions">
+								<div class="save-session-form">
+									<input type="text" id="session-name-input" placeholder="Enter session name..." class="form-input">
+									<button id="save-session-btn" class="btn btn-primary">
+										<i class="fas fa-save"></i>
+										Save Current Session
+									</button>
+								</div>
+							</div>
+
+							<div class="sessions-list">
+								<div id="sessions-container" class="sessions-container">
+									<div class="loading-sessions">
+										<i class="fas fa-spinner fa-spin"></i>
+										Loading sessions...
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Automations Tab -->
+				<div id="automations-tab" class="tab-content">
+					<div class="automations-layout">
+						<div class="automations-header">
+							<h2>
+								Saved Automations
+								<i class="fas fa-info-circle help-icon" title="Manage your saved automation workflows"></i>
+							</h2>
+							<div class="automations-actions">
+								<button id="save-automation-btn" class="btn btn-primary" onclick="app.saveCurrentChatAsAutomation()">
+									<i class="fas fa-save"></i>
+									Save Current Chat
+								</button>
+								<button id="refresh-automations-btn" class="btn btn-secondary" onclick="app.loadSavedAutomations()">
+									<i class="fas fa-sync"></i>
+									Refresh
+								</button>
+							</div>
+						</div>
+
+						<div class="automations-content">
+							<div class="automations-tabs">
+								<button class="automation-tab-btn active" data-section="saved">
+									<i class="fas fa-folder"></i>
+									Saved Automations
+								</button>
+								<button class="automation-tab-btn" data-section="scheduled">
+									<i class="fas fa-clock"></i>
+									Scheduled
+								</button>
+								<button class="automation-tab-btn" data-section="history">
+									<i class="fas fa-history"></i>
+									Execution History
+								</button>
+							</div>
+
+							<div class="automation-sections">
+								<div id="saved-automations-section" class="automation-section active">
+									<div class="automations-filter">
+										<input type="text" id="automation-search" placeholder="Search automations..." class="search-input">
+										<select id="automation-category-filter" class="filter-select">
+											<option value="">All Categories</option>
+										</select>
+									</div>
+									<div id="saved-automations-list" class="automations-list">
+										<div class="loading-automations">
+											<i class="fas fa-spinner fa-spin"></i>
+											Loading automations...
+										</div>
+									</div>
+								</div>
+
+								<div id="scheduled-automations-section" class="automation-section">
+									<div id="scheduled-automations-list" class="automations-list">
+										<div class="empty-state">
+											<p>No scheduled automations</p>
+											<small>Schedule automations to run automatically at specified times</small>
+										</div>
+									</div>
+								</div>
+
+								<div id="execution-history-section" class="automation-section">
+									<div id="execution-history-list" class="automations-list">
+										<div class="empty-state">
+											<p>No execution history</p>
+											<small>History of automation executions will appear here</small>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Providers Tab -->
+				<div id="providers-tab" class="tab-content">
+					<div class="providers-layout">
+						<div class="providers-header">
+							<h2>
+								Provider Configuration
+								<i class="fas fa-info-circle help-icon" title="Configure and test your AI providers"></i>
+							</h2>
+							<button id="refresh-providers-btn" class="btn btn-secondary">
+								<i class="fas fa-sync"></i>
+								Refresh
+							</button>
+						</div>
+
+						<div class="providers-content">
+							<div id="providers-grid" class="providers-grid">
+								<div class="loading-providers">
+									<i class="fas fa-spinner fa-spin"></i>
+									Loading providers...
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</main>
+		</div>
+
+		<!-- Mobile Navigation -->
+		<nav id="mobile-nav" class="mobile-nav">
+			<button class="mobile-nav-btn active" data-tab="chat">
+				<i class="fas fa-comments"></i>
+				<span>Chat</span>
+			</button>
+			<button class="mobile-nav-btn" data-tab="agent">
+				<i class="fas fa-robot"></i>
+				<span>Agent</span>
+			</button>
+			<button class="mobile-nav-btn" data-tab="sessions">
+				<i class="fas fa-history"></i>
+				<span>Sessions</span>
+			</button>
+			<button class="mobile-nav-btn" data-tab="automations">
+				<i class="fas fa-magic"></i>
+				<span>Automations</span>
+			</button>
+			<button class="mobile-nav-btn" data-tab="providers">
+				<i class="fas fa-cogs"></i>
+				<span>Providers</span>
+			</button>
+		</nav>
+
+		<!-- Modals -->
+		<div id="modal-overlay" class="modal-overlay hidden">
+			<div id="modal-content" class="modal-content">
+				<!-- Modal content will be dynamically inserted -->
+			</div>
+		</div>
+
+		<!-- Context Bucket Add Modal -->
+		<div id="context-add-modal" class="modal-overlay hidden">
+			<div class="modal-content context-add-modal">
+				<div class="modal-header">
+					<h3>Add Context Item</h3>
+					<button class="modal-close" onclick="closeContextModal()">
+						<i class="fas fa-times"></i>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label for="context-type">Type:</label>
+						<select id="context-type" class="form-control">
+							<option value="document">Document</option>
+							<option value="instruction">Instruction</option>
+							<option value="reference">Reference</option>
+							<option value="code_snippet">Code Snippet</option>
+							<option value="url">URL</option>
+							<option value="note">Note</option>
+							<option value="template">Template</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label for="context-title">Title:</label>
+						<input type="text" id="context-title" class="form-control" placeholder="Enter a descriptive title...">
+					</div>
+					<div class="form-group">
+						<label for="context-content">Content:</label>
+						<textarea id="context-content" class="form-control" rows="8" placeholder="Enter the content..."></textarea>
+					</div>
+					<div class="form-group">
+						<label for="context-priority">Priority:</label>
+						<select id="context-priority" class="form-control">
+							<option value="low">Low</option>
+							<option value="medium" selected>Medium</option>
+							<option value="high">High</option>
+							<option value="critical">Critical</option>
+						</select>
+					</div>
+					<div class="form-group">
+						<label for="context-tags">Tags (comma-separated):</label>
+						<input type="text" id="context-tags" class="form-control" placeholder="e.g., api, documentation, important">
+					</div>
+					<div class="form-group">
+						<label for="context-source">Source (optional):</label>
+						<input type="text" id="context-source" class="form-control" placeholder="File path or URL">
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="btn btn-secondary" onclick="closeContextModal()">Cancel</button>
+					<button class="btn btn-primary" onclick="saveContextItem()">
+						<i class="fas fa-save"></i> Save
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Toast Notifications -->
+		<div id="toast-container" class="toast-container"></div>
+	</div>
+
+	<!-- Wails Runtime Script -->
+	<script src="/wails/runtime.js"></script>
+	<script>
+		// Debug Wails runtime loading
+		console.log('Wails runtime loaded:', !!window.runtime);
+		console.log('Wails Go bindings:', !!window.go);
+		if (window.go) {
+			console.log('Go UI App available:', !!window.go.ui?.App);
+		}
+	</script>
+
+	<!-- Scripts -->
+	<script src="js/app.js" type="module"></script>
 </body>
 </html>

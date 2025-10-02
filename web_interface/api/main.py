@@ -868,6 +868,28 @@ LLM_MODELS = {
     "LM Studio": [
         # Will be populated dynamically from local LM Studio instance
         "Available models will be detected from local LM Studio server"
+    ],
+    "Z.AI": [
+        # GLM-4.5 series (High-performance models)
+        "GLM-4.5",
+        "glm-4.5",
+        # GLM-4.5-Air series (Faster, cost-effective models)
+        "GLM-4.5-Air",
+        "glm-4.5-air",
+        # GLM-4.6 model (Latest model)
+        "glm-4.6",
+        "GLM-4.6",
+        # Claude model compatibility (automatically mapped to GLM equivalents)
+        "claude-3-5-sonnet-20241022",  # Maps to GLM-4.5
+        "claude-3-5-haiku-20241022",   # Maps to GLM-4.5-Air
+        "claude-3-opus",               # Maps to GLM-4.5
+        "claude-3-sonnet",             # Maps to GLM-4.5
+        "claude-3-haiku",              # Maps to GLM-4.5-Air
+        # OpenAI model compatibility (automatically mapped)
+        "gpt-4",                       # Maps to GLM-4.5
+        "gpt-4-turbo",                 # Maps to GLM-4.5
+        "gpt-3.5-turbo",               # Maps to GLM-4.5-Air
+        "gpt-5-mini"                   # Maps to GLM-4.5-Air
     ]
 }
 
@@ -965,6 +987,49 @@ def get_llm(provider: str, model: str, api_key: Optional[str] = None):
 				model=model,
 				api_key="lm-studio",  # Dummy key for compatibility
 				base_url="http://localhost:1234/v1"
+			)
+		elif provider == "Z.AI":
+			# Z.AI uses Anthropic-compatible API with GLM models
+			from langchain_anthropic import ChatAnthropic
+
+			# Get API key with fallback chain
+			zai_api_key = api_key or os.getenv("ANTHROPIC_AUTH_TOKEN")
+			if not zai_api_key:
+				raise ValueError("Z.AI requires ANTHROPIC_AUTH_TOKEN environment variable or api_key parameter")
+
+			# Get base URL with fallback
+			base_url = os.getenv("ANTHROPIC_BASE_URL", "https://open.bigmodel.cn/api/anthropic/v1")
+
+			# Map model names to GLM equivalents (updated with GLM-4.6)
+			model_mapping = {
+				"claude-3-5-sonnet-20241022": "GLM-4.6",
+				"claude-3-5-haiku-20241022": "GLM-4.5-Air",
+				"claude-3-opus": "GLM-4.6",
+				"claude-3-sonnet": "GLM-4.6",
+				"claude-3-haiku": "GLM-4.5-Air",
+				"gpt-4": "GLM-4.6",
+				"gpt-4-turbo": "GLM-4.6",
+				"gpt-3.5-turbo": "GLM-4.5-Air",
+				"gpt-5-mini": "GLM-4.5-Air",
+				"GLM-4.6": "GLM-4.6",
+				"glm-4.6": "GLM-4.6"
+			}
+
+			zai_model = model_mapping.get(model, model)
+
+			# Ensure we're using a valid GLM model name
+			if not zai_model.startswith("GLM-"):
+				# Default to GLM-4.6 for unmapped models
+				zai_model = "GLM-4.6"
+
+			return ChatAnthropic(
+				model=zai_model,
+				api_key=zai_api_key,
+				base_url=base_url,
+				default_headers={
+					"HTTP-Referer": "https://github.com/macOS-use/macOS-use",
+					"X-Title": "macOS-use Agent"
+				}
 			)
 		else:
 			raise ValueError(f"Unsupported provider: {provider}")
@@ -1074,10 +1139,11 @@ def check_provider_availability(provider: str) -> bool:
 	# Check API key for providers that require it
 	key_map = {
 		"OpenAI": "OPENAI_API_KEY",
-		"Anthropic": "ANTHROPIC_API_KEY", 
+		"Anthropic": "ANTHROPIC_API_KEY",
 		"Google": "GOOGLE_API_KEY",
 		"DeepSeek": "DEEPSEEK_API_KEY",
-		"OpenRouter": "OPENROUTER_API_KEY"
+		"OpenRouter": "OPENROUTER_API_KEY",
+		"Z.AI": "ANTHROPIC_AUTH_TOKEN"
 	}
 	
 	if provider in key_map:
@@ -1094,13 +1160,29 @@ def check_provider_availability(provider: str) -> bool:
 					"X-Title": "macOS-use Agent",
 					"Content-Type": "application/json"
 				}
-				response = requests.get("https://openrouter.ai/api/v1/models", 
+				response = requests.get("https://openrouter.ai/api/v1/models",
 									  headers=headers, timeout=10)
 				return response.status_code == 200
 			except Exception as e:
 				print(f"OpenRouter availability check failed: {e}")
 				return False
-	
+
+		# Special check for Z.AI - test API connectivity
+		elif provider == "Z.AI":
+			try:
+				base_url = os.getenv("ANTHROPIC_BASE_URL", "https://open.bigmodel.cn/api/anthropic/v1")
+				headers = {
+					"Authorization": f"Bearer {api_key}",
+					"Content-Type": "application/json"
+				}
+				# Test with a simple models endpoint call
+				response = requests.get(f"{base_url}/models", headers=headers, timeout=10)
+				# Z.AI may not have a models endpoint, so we'll consider any non-401 response as available
+				return response.status_code != 401
+			except Exception as e:
+				print(f"Z.AI availability check failed: {e}")
+				return False
+
 	# Check local providers (Ollama, LM Studio)
 	elif provider == "Ollama":
 		try:
@@ -1378,17 +1460,34 @@ async def get_automation_templates():
 async def get_providers():
 	"""Get available LLM providers and their models"""
 	try:
+		print("🔍 DEBUG: Web interface /api/providers called")
 		providers = {}
-		provider_list = ["OpenAI", "Anthropic", "Google", "DeepSeek", "OpenRouter", "Ollama", "LM Studio"]
-		
+		provider_list = ["OpenAI", "Anthropic", "Google", "DeepSeek", "OpenRouter", "Ollama", "LM Studio", "Z.AI"]
+		print(f"🔍 DEBUG: provider_list: {provider_list}")
+
 		for provider in provider_list:
-			models = get_available_models(provider)
-			is_available = check_provider_availability(provider)
-			providers[provider] = {
-				"models": models,
-				"available": is_available,
-				"api_key_required": provider not in ["Ollama", "LM Studio"]
-			}
+			print(f"🔍 DEBUG: Processing provider: {provider}")
+			try:
+				models = get_available_models(provider)
+				is_available = check_provider_availability(provider)
+				print(f"🔍 DEBUG: {provider} - models: {len(models)}, available: {is_available}")
+				providers[provider] = {
+					"models": models,
+					"available": is_available,
+					"api_key_required": provider not in ["Ollama", "LM Studio"]
+				}
+			except Exception as e:
+				print(f"🔍 DEBUG: Error processing {provider}: {e}")
+				providers[provider] = {
+					"models": [],
+					"available": False,
+					"api_key_required": provider not in ["Ollama", "LM Studio"],
+					"error": str(e)
+				}
+
+		print(f"🔍 DEBUG: Final providers dict keys: {list(providers.keys())}")
+		for name, data in providers.items():
+			print(f"🔍 DEBUG: {name}: available={data.get('available')}, models={len(data.get('models', []))}")
 		
 		return JSONResponse(content=providers)
 	except Exception as e:
@@ -1399,26 +1498,50 @@ async def get_providers():
 async def test_provider(request: ProviderTestRequest):
 	"""Test connection to a specific provider"""
 	try:
+		print(f"🔍 DEBUG: Testing provider: {request.provider}, model: {request.model}")
+
 		# Check if provider is available
 		if not check_provider_availability(request.provider):
 			return JSONResponse(content={
 				"success": False,
 				"message": "Provider not available. Check API key or local service."
 			})
-		
+
 		# Try to initialize the LLM
-		if not request.api_key and request.provider in ["OpenAI", "Anthropic", "Google", "DeepSeek", "OpenRouter"]:
+		if not request.api_key and request.provider in ["OpenAI", "Anthropic", "Google", "DeepSeek", "OpenRouter", "Z.AI"]:
 			return JSONResponse(content={
 				"success": False,
 				"message": "API key required for this provider"
 			})
-		
+
 		llm = get_llm(request.provider, request.model, request.api_key)
-		
+		print(f"🔍 DEBUG: LLM initialized: {llm}")
+
 		# Test with a simple message
-		test_response = llm.invoke("Hello, this is a connection test. Please respond with 'Test successful'.")
-		
-		if "test successful" in test_response.content.lower():
+		print(f"🔍 DEBUG: About to call llm.invoke...")
+		try:
+			test_response = llm.invoke("Hello, this is a connection test. Please respond with 'Test successful'.")
+			print(f"🔍 DEBUG: Test response type: {type(test_response)}")
+			print(f"🔍 DEBUG: Test response: {test_response}")
+
+			# Handle different response formats
+			response_text = ""
+			if hasattr(test_response, 'content'):
+				response_text = test_response.content
+			elif hasattr(test_response, 'text'):
+				response_text = test_response.text
+			elif isinstance(test_response, str):
+				response_text = test_response
+			else:
+				response_text = str(test_response)
+
+			print(f"🔍 DEBUG: Extracted response text: '{response_text}'")
+		except Exception as invoke_error:
+			print(f"🔍 DEBUG: Error during llm.invoke: {invoke_error}")
+			print(f"🔍 DEBUG: Error type: {type(invoke_error)}")
+			raise invoke_error
+
+		if "test successful" in response_text.lower():
 			message = "Connection successful! Provider is working correctly."
 		else:
 			message = "Connection established. Provider responded."

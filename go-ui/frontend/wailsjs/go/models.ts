@@ -152,6 +152,50 @@ export namespace ui {
 	    }
 	}
 	
+	export class ContextBucketItem {
+	    id: string;
+	    type: string;
+	    title: string;
+	    content: string;
+	    priority: string;
+	    tags: string[];
+	    created_at: string;
+	    token_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ContextBucketItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.type = source["type"];
+	        this.title = source["title"];
+	        this.content = source["content"];
+	        this.priority = source["priority"];
+	        this.tags = source["tags"];
+	        this.created_at = source["created_at"];
+	        this.token_count = source["token_count"];
+	    }
+	}
+	export class ContextBucketSummary {
+	    total_items: number;
+	    total_tokens: number;
+	    max_tokens: number;
+	    usage_percent: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ContextBucketSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total_items = source["total_items"];
+	        this.total_tokens = source["total_tokens"];
+	        this.max_tokens = source["max_tokens"];
+	        this.usage_percent = source["usage_percent"];
+	    }
+	}
 	export class Provider {
 	    name: string;
 	    models: string[];

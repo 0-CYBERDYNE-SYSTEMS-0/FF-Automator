@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -838,6 +839,167 @@ func (a *App) SendChatMessage(message, provider, model, systemMessage string) er
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("chat send API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// GetBackendURL returns the Python backend URL for direct fetch calls from frontend
+func (a *App) GetBackendURL() string {
+	return a.pythonManager.GetBackendURL()
+}
+
+// Context Bucket methods
+type ContextBucketItem struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	Priority    string `json:"priority"`
+	Tags        []string `json:"tags"`
+	CreatedAt   string `json:"created_at"`
+	TokenCount  int    `json:"token_count"`
+}
+
+type ContextBucketSummary struct {
+	TotalItems    int     `json:"total_items"`
+	TotalTokens   int     `json:"total_tokens"`
+	MaxTokens     int     `json:"max_tokens"`
+	UsagePercent  float64 `json:"usage_percent"`
+}
+
+// GetContextBucketItems returns all context bucket items
+func (a *App) GetContextBucketItems() ([]ContextBucketItem, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/context-bucket/items")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get context bucket items: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("context bucket items API returned status %d", resp.StatusCode)
+	}
+
+	var items []ContextBucketItem
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		return nil, fmt.Errorf("failed to decode context bucket items: %v", err)
+	}
+
+	return items, nil
+}
+
+// GetContextBucketSummary returns context bucket summary statistics
+func (a *App) GetContextBucketSummary() (*ContextBucketSummary, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/context-bucket/summary")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get context bucket summary: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("context bucket summary API returned status %d", resp.StatusCode)
+	}
+
+	var summary ContextBucketSummary
+	if err := json.NewDecoder(resp.Body).Decode(&summary); err != nil {
+		return nil, fmt.Errorf("failed to decode context bucket summary: %v", err)
+	}
+
+	return &summary, nil
+}
+
+// AddContextBucketItem adds a new item to the context bucket
+func (a *App) AddContextBucketItem(item ContextBucketItem) error {
+	jsonData, err := json.Marshal(item)
+	if err != nil {
+		return fmt.Errorf("failed to marshal context bucket item: %v", err)
+	}
+
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/context-bucket/items", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to add context bucket item: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("add context bucket item API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// DeleteContextBucketItem removes an item from the context bucket
+func (a *App) DeleteContextBucketItem(id string) error {
+	req, err := http.NewRequest("DELETE", a.pythonManager.GetBackendURL()+"/api/context-bucket/items/"+id, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create delete request: %v", err)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to delete context bucket item: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("delete context bucket item API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// ClearContextBucket removes all items from the context bucket
+func (a *App) ClearContextBucket() error {
+	req, err := http.NewRequest("DELETE", a.pythonManager.GetBackendURL()+"/api/context-bucket/items", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create clear request: %v", err)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to clear context bucket: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("clear context bucket API returned status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// ExportContextBucket exports all context bucket items
+func (a *App) ExportContextBucket() ([]byte, error) {
+	resp, err := http.Get(a.pythonManager.GetBackendURL() + "/api/context-bucket/export")
+	if err != nil {
+		return nil, fmt.Errorf("failed to export context bucket: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("export context bucket API returned status %d", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read export data: %v", err)
+	}
+
+	return data, nil
+}
+
+// ImportContextBucket imports items into the context bucket
+func (a *App) ImportContextBucket(data []byte) error {
+	resp, err := http.Post(a.pythonManager.GetBackendURL()+"/api/context-bucket/import", "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		return fmt.Errorf("failed to import context bucket: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("import context bucket API returned status %d", resp.StatusCode)
 	}
 
 	return nil
