@@ -1,10 +1,13 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from langchain_core.messages import HumanMessage, SystemMessage
 from mlx_use.agent.views import ActionResult, AgentStepInfo
 
+if TYPE_CHECKING:
+    from mlx_use.agent.context_bucket import ContextBucket
+
 class SystemPrompt:
-    def __init__(self, action_description: str, current_date: datetime, max_actions_per_step: int = 10):
+    def __init__(self, action_description: str, current_date: datetime, max_actions_per_step: int = 10, context_bucket: Optional['ContextBucket'] = None):
         """
         Initialize SystemPrompt with action description, current date and max actions allowed per step.
         
@@ -12,10 +15,12 @@ class SystemPrompt:
             action_description (str): Description of available actions
             current_date (datetime): Current system date/time
             max_actions_per_step (int): Maximum number of actions allowed per step
+            context_bucket (Optional[ContextBucket]): Context bucket for persistent information
         """
         self.default_action_description = action_description
         self.current_date = current_date
         self.max_actions_per_step = max_actions_per_step
+        self.context_bucket = context_bucket
 
     def important_rules(self) -> str:
         """Returns a string containing important rules for the system."""
@@ -137,6 +142,13 @@ NOTE: The UI tree includes detailed accessibility attributes use them to choose 
         """Creates and returns a SystemMessage with formatted content."""
         time_str = self.current_date.strftime('%Y-%m-%d %H:%M')
 
+        # Get context from context bucket if available
+        context_content = ""
+        if self.context_bucket:
+            context_content = self.context_bucket.get_context_for_prompt(max_tokens=2000)
+            if context_content:
+                context_content = f"\n\n{context_content}\n"
+
         AGENT_PROMPT = f"""
         You are a macOS automation agent that interacts with applications via their UI elements using the Accessibility API. Your role is to:
 1. Analyze the provided UI tree of the current application.
@@ -151,7 +163,7 @@ CRITICAL LOOP PREVENTION:
 - Monitor your memory field for repetitive patterns and break cycles immediately
 
 Current date and time: {time_str}
-
+{context_content}
 {self.input_format()}
 
 {self.important_rules()}

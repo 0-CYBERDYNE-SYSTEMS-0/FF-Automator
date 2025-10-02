@@ -19,8 +19,6 @@ class FFTerminalApp {
 		this.savedAutomations = [];
 		this.scheduledAutomations = [];
 		this.currentAgentExecution = null; // Track current agent execution for saving
-		this.lastChatExecution = null; // Track last chat execution for automation saving
-		this.currentChatExecution = null; // Track current chat execution
 		
 		this.init();
 	}
@@ -64,13 +62,19 @@ class FFTerminalApp {
 		// Set up initial UI state
 		this.updateConnectionStatus(false);
 		this.switchTab('chat');
-		// Apply saved theme on startup
-		this.applySavedTheme();
 	}
 
 	setupEventListeners() {
 		// Navigation
 		document.querySelectorAll('.nav-btn').forEach(btn => {
+			btn.addEventListener('click', (e) => {
+				const tab = e.currentTarget.dataset.tab;
+				this.switchTab(tab);
+			});
+		});
+		
+		// Mobile Navigation
+		document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
 			btn.addEventListener('click', (e) => {
 				const tab = e.currentTarget.dataset.tab;
 				this.switchTab(tab);
@@ -89,45 +93,14 @@ class FFTerminalApp {
 		// Providers functionality
 		this.setupProvidersListeners();
 
-		// Background image controls
-		this.setupBackgroundImageControls();
-
-		// Theme toggle
-		this.setupThemeToggle();
-
 		// Automation templates
 		this.setupAutomationTemplates();
 
 		// Help icons
 		this.setupHelpIcons();
-	}
-
-	// ===== Theme handling =====
-	setupThemeToggle() {
-		const btn = document.getElementById('theme-toggle');
-		if (!btn) return;
-		btn.addEventListener('click', () => {
-			const isDark = document.body.classList.toggle('theme-dark');
-			localStorage.setItem('ff_theme', isDark ? 'dark' : 'light');
-			this.updateThemeToggleIcon(isDark);
-		});
-		// initialize icon
-		this.updateThemeToggleIcon(document.body.classList.contains('theme-dark'));
-	}
-
-	applySavedTheme() {
-		const saved = localStorage.getItem('ff_theme');
-		const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-		const shouldBeDark = saved ? saved === 'dark' : prefersDark;
-		if (shouldBeDark) {
-			document.body.classList.add('theme-dark');
-		}
-	}
-
-	updateThemeToggleIcon(isDark) {
-		const btn = document.getElementById('theme-toggle');
-		if (!btn) return;
-		btn.innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+		
+		// Context bucket functionality
+		this.setupContextBucket();
 	}
 
 	setupChatListeners() {
@@ -169,11 +142,6 @@ class FFTerminalApp {
 		document.getElementById('chat-provider').addEventListener('change', (e) => {
 			this.updateChatModels(e.target.value);
 		});
-		
-		// Model changes for GPT-5 parameter visibility
-		document.getElementById('chat-model').addEventListener('change', (e) => {
-			this.toggleGPT5Parameters('chat', e.target.value);
-		});
 	}
 
 	setupAgentListeners() {
@@ -182,21 +150,23 @@ class FFTerminalApp {
 		const refineBtn = document.getElementById('refine-task-btn');
 		const clearTerminalBtn = document.getElementById('clear-terminal-btn');
 		const saveAgentBtn = document.getElementById('save-agent-automation-btn');
+		const manageContextBtn = document.getElementById('manage-agent-context-btn');
 
 		runBtn.addEventListener('click', () => this.runAgent());
 		stopBtn.addEventListener('click', () => this.stopAgent());
 		refineBtn.addEventListener('click', () => this.refineTask());
 		clearTerminalBtn.addEventListener('click', () => this.clearTerminal());
 		saveAgentBtn.addEventListener('click', () => this.saveAgentAsAutomation());
+		manageContextBtn.addEventListener('click', () => this.openAgentContextModal());
 
 		// Provider changes
 		document.getElementById('agent-provider').addEventListener('change', (e) => {
 			this.updateAgentModels(e.target.value);
 		});
 		
-		// Model changes for GPT-5 parameter visibility
-		document.getElementById('agent-model').addEventListener('change', (e) => {
-			this.toggleGPT5Parameters('agent', e.target.value);
+		// Context session changes
+		document.getElementById('agent-context-session').addEventListener('input', () => {
+			this.updateAgentContextSummary();
 		});
 	}
 
@@ -231,66 +201,6 @@ class FFTerminalApp {
 					this.showToast(title, 'info');
 				}
 			});
-		});
-	}
-
-	// Background Image: load/apply, handle upload & clear
-	setupBackgroundImageControls() {
-		const fileInput = document.getElementById('bg-image-input');
-		const clearBtn = document.getElementById('bg-clear-btn');
-
-		// Apply on startup if exists
-		this.applySavedBackgroundImage();
-
-		if (fileInput) {
-			fileInput.addEventListener('change', async (e) => {
-				const file = e.target.files && e.target.files[0];
-				if (!file) return;
-				try {
-					const dataUrl = await this.readFileAsDataURL(file);
-					localStorage.setItem('ff_bg_image', dataUrl);
-					this.applyBackgroundImage(dataUrl);
-					this.showToast('Background image set', 'success');
-				} catch (err) {
-					console.error('Failed to load background image:', err);
-					this.showToast('Failed to set background image', 'error');
-				}
-			});
-		}
-
-		if (clearBtn) {
-			clearBtn.addEventListener('click', () => {
-				localStorage.removeItem('ff_bg_image');
-				this.clearBackgroundImage();
-				this.showToast('Background cleared', 'info');
-			});
-		}
-	}
-
-	applySavedBackgroundImage() {
-		const saved = localStorage.getItem('ff_bg_image');
-		if (saved) {
-			this.applyBackgroundImage(saved);
-		}
-	}
-
-	applyBackgroundImage(dataUrl) {
-		// Apply to body and provide subtle overlay for readability
-		document.body.style.setProperty('--app-bg-image', `url('${dataUrl}')`);
-		document.body.classList.add('with-custom-bg');
-	}
-
-	clearBackgroundImage() {
-		document.body.style.removeProperty('--app-bg-image');
-		document.body.classList.remove('with-custom-bg');
-	}
-
-	readFileAsDataURL(file) {
-		return new Promise((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onload = () => resolve(reader.result);
-			reader.onerror = reject;
-			reader.readAsDataURL(file);
 		});
 	}
 
@@ -396,11 +306,18 @@ class FFTerminalApp {
 
 	// Tab Management
 	switchTab(tabName) {
-		// Update navigation
+		// Update navigation - handle both desktop and mobile nav buttons
 		document.querySelectorAll('.nav-btn').forEach(btn => {
 			btn.classList.remove('active');
 		});
-		document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+		document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+			btn.classList.remove('active');
+		});
+		
+		// Add active class to all matching tab buttons (desktop and mobile)
+		document.querySelectorAll(`[data-tab="${tabName}"]`).forEach(btn => {
+			btn.classList.add('active');
+		});
 
 		// Update content
 		document.querySelectorAll('.tab-content').forEach(content => {
@@ -430,9 +347,6 @@ class FFTerminalApp {
 		const provider = document.getElementById('chat-provider').value;
 		const model = document.getElementById('chat-model').value;
 		const apiKey = document.getElementById('chat-api-key').value;
-		// GPT-5 specific parameters
-		const reasoningEffort = document.getElementById('chat-reasoning-effort').value;
-		const verbosity = document.getElementById('chat-verbosity').value;
 
 		// Add user message to chat
 		this.addChatMessage(message, 'user');
@@ -457,10 +371,7 @@ class FFTerminalApp {
 					llm_provider: provider,
 					llm_model: model,
 					api_key: apiKey,
-					custom_system_message: customSystemMessage,
-					// GPT-5 specific parameters
-					reasoning_effort: reasoningEffort,
-					verbosity: verbosity
+					custom_system_message: customSystemMessage
 				}
 			}));
 
@@ -653,28 +564,7 @@ class FFTerminalApp {
 
 	handleChatStreamUpdate(data) {
 		// Handle multi-step chat execution updates
-		const { status, message, step, max_steps, queue_status, current_task, actions_taken } = data;
-
-		// Track execution data for potential automation saving
-		if (!this.currentChatExecution) {
-			this.currentChatExecution = {
-				steps: [],
-				actions_taken: []
-			};
-		}
-
-		// Track steps and actions
-		if (message) {
-			this.currentChatExecution.steps.push({
-				step: step,
-				message: message,
-				status: status,
-				timestamp: new Date().toISOString()
-			});
-		}
-		if (actions_taken) {
-			this.currentChatExecution.actions_taken.push(actions_taken);
-		}
+		const { status, message, step, max_steps, queue_status, current_task } = data;
 
 		// Update or create typing indicator based on status
 		if (status === 'starting') {
@@ -750,24 +640,6 @@ class FFTerminalApp {
 			timestamp: new Date().toISOString(),
 			success: data.success
 		});
-
-		// Store execution data if successful for automation saving
-		if (data.success) {
-			this.lastChatExecution = {
-				task: this.conversationHistory[this.conversationHistory.length - 2]?.content || '',
-				response: data.response,
-				steps: this.currentChatExecution?.steps || [],
-				actions_taken: this.currentChatExecution?.actions_taken || [],
-				provider: document.getElementById('chat-provider').value,
-				model: document.getElementById('chat-model').value,
-				custom_system_message: document.getElementById('chat-custom-system').value,
-				completed_at: new Date().toISOString(),
-				execution_data: data.execution_data
-			};
-		}
-
-		// Reset current execution tracking
-		this.currentChatExecution = null;
 
 		// Update UI state
 		this.isChatRunning = false;
@@ -883,9 +755,6 @@ class FFTerminalApp {
 		const provider = document.getElementById('agent-provider').value;
 		const model = document.getElementById('agent-model').value;
 		const apiKey = document.getElementById('agent-api-key').value;
-		// GPT-5 specific parameters
-		const reasoningEffort = document.getElementById('agent-reasoning-effort').value;
-		const verbosity = document.getElementById('agent-verbosity').value;
 
 		// Reset execution tracking for new run
 		this.currentAgentExecution = null;
@@ -895,8 +764,9 @@ class FFTerminalApp {
 		this.isAgentRunning = true;
 		this.updateAgentUI(true);
 
-		// Get custom system message
+		// Get custom system message and context session
 		const customSystemMessage = document.getElementById('agent-custom-system').value.trim();
+		const contextSessionId = document.getElementById('agent-context-session').value.trim() || 'agent_session';
 
 		// Send task via WebSocket
 		if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -910,9 +780,7 @@ class FFTerminalApp {
 					llm_model: model,
 					api_key: apiKey,
 					custom_system_message: customSystemMessage,
-					// GPT-5 specific parameters
-					reasoning_effort: reasoningEffort,
-					verbosity: verbosity
+					context_session_id: contextSessionId
 				}
 			}));
 		} else {
@@ -1272,19 +1140,11 @@ Only return the refined prompt text, nothing else.`;
 	updateChatModels(provider) {
 		const modelSelect = document.getElementById('chat-model');
 		this.updateModelSelect(modelSelect, provider);
-		// Update GPT-5 parameter visibility for initial/default model
-		if (modelSelect.value) {
-			this.toggleGPT5Parameters('chat', modelSelect.value);
-		}
 	}
 
 	updateAgentModels(provider) {
 		const modelSelect = document.getElementById('agent-model');
 		this.updateModelSelect(modelSelect, provider);
-		// Update GPT-5 parameter visibility for initial/default model
-		if (modelSelect.value) {
-			this.toggleGPT5Parameters('agent', modelSelect.value);
-		}
 	}
 
 	updateModelSelect(selectElement, provider) {
@@ -1561,6 +1421,8 @@ Only return the refined prompt text, nothing else.`;
 			const tags = document.getElementById('agent-automation-tags').value;
 
 			if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+				const contextSessionId = document.getElementById('agent-context-session').value || 'agent_session';
+				
 				this.socket.send(JSON.stringify({
 					type: 'save_automation',
 					data: {
@@ -1572,6 +1434,7 @@ Only return the refined prompt text, nothing else.`;
 						custom_system_message: this.currentAgentExecution.custom_system,
 						llm_provider: this.currentAgentExecution.provider,
 						llm_model: this.currentAgentExecution.model,
+						context_session_id: contextSessionId,
 						execution_data: this.currentAgentExecution
 					}
 				}));
@@ -1643,14 +1506,12 @@ Only return the refined prompt text, nothing else.`;
 					data: {
 						name,
 						description,
-						task: this.lastChatExecution?.task || this.conversationHistory[0]?.content || name,
+						task: this.conversationHistory[0]?.content || name,
 						category,
 						tags,
 						custom_system_message: this.getCustomSystemMessage(),
 						llm_provider: this.getCurrentProvider(),
-						llm_model: this.getCurrentModel(),
-						execution_data: this.lastChatExecution,
-						conversation_history: this.conversationHistory
+						llm_model: this.getCurrentModel()
 					}
 				}));
 			}
@@ -2094,22 +1955,335 @@ Only return the refined prompt text, nothing else.`;
 		}
 	}
 
-	// GPT-5 Parameter Management
-	toggleGPT5Parameters(uiType, model) {
-		// Check if model is GPT-5 series
-		const isGPT5 = model.startsWith('gpt-5');
-		
-		if (uiType === 'chat') {
-			const parameters = document.querySelectorAll('.gpt5-parameters');
-			parameters.forEach(param => {
-				param.style.display = isGPT5 ? 'block' : 'none';
-			});
-		} else if (uiType === 'agent') {
-			const parameters = document.querySelectorAll('.agent-gpt5-parameters');
-			parameters.forEach(param => {
-				param.style.display = isGPT5 ? 'block' : 'none';
-			});
+	// Context Bucket Methods
+	setupContextBucket() {
+		// Toggle button
+		const toggleBtn = document.getElementById('toggle-context-bucket');
+		if (toggleBtn) {
+			toggleBtn.addEventListener('click', () => this.toggleContextBucket());
 		}
+
+		// Action buttons
+		document.getElementById('add-context-btn')?.addEventListener('click', () => this.showAddContextModal());
+		document.getElementById('clear-context-btn')?.addEventListener('click', () => this.clearContextBucket());
+		document.getElementById('export-context-btn')?.addEventListener('click', () => this.exportContextBucket());
+		document.getElementById('import-context-btn')?.addEventListener('click', () => this.showImportContextModal());
+
+		// Load initial context items
+		this.loadContextItems();
+	}
+
+	toggleContextBucket() {
+		const content = document.getElementById('context-bucket-content');
+		const toggleBtn = document.getElementById('toggle-context-bucket');
+		const icon = toggleBtn.querySelector('i');
+
+		if (content.classList.contains('collapsed')) {
+			content.classList.remove('collapsed');
+			icon.classList.remove('fa-chevron-right');
+			icon.classList.add('fa-chevron-down');
+		} else {
+			content.classList.add('collapsed');
+			icon.classList.remove('fa-chevron-down');
+			icon.classList.add('fa-chevron-right');
+		}
+	}
+
+	async loadContextItems() {
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/items`);
+			const data = await response.json();
+			
+			this.renderContextItems(data.items || []);
+			this.updateContextStats(data.stats || {});
+		} catch (error) {
+			console.error('Failed to load context items:', error);
+		}
+	}
+
+	renderContextItems(items) {
+		const container = document.getElementById('context-bucket-items');
+		
+		if (items.length === 0) {
+			container.innerHTML = `
+				<div class="empty-context">
+					<i class="fas fa-folder-open"></i>
+					<p>No context items yet. Add documents, instructions, or references.</p>
+				</div>
+			`;
+			return;
+		}
+
+		container.innerHTML = items.map(item => `
+			<div class="context-item" data-item-id="${item.id}">
+				<div class="context-item-header">
+					<div>
+						<span class="context-item-type">${item.type}</span>
+						<span class="context-item-title">${this.escapeHtml(item.title)}</span>
+					</div>
+					<div class="context-item-actions">
+						<span class="context-item-priority priority-${item.priority}">${item.priority}</span>
+						<button class="btn-icon-small" onclick="app.editContextItem('${item.id}')" title="Edit">
+							<i class="fas fa-edit"></i>
+						</button>
+						<button class="btn-icon-small" onclick="app.deleteContextItem('${item.id}')" title="Delete">
+							<i class="fas fa-trash"></i>
+						</button>
+					</div>
+				</div>
+				<div class="context-item-content">
+					${this.escapeHtml(item.content).substring(0, 150)}${item.content.length > 150 ? '...' : ''}
+				</div>
+				${item.tags && item.tags.length > 0 ? `
+					<div class="context-item-tags">
+						${item.tags.map(tag => `<span class="context-tag">${this.escapeHtml(tag)}</span>`).join('')}
+					</div>
+				` : ''}
+			</div>
+		`).join('');
+	}
+
+	updateContextStats(stats) {
+		const usedTokens = stats.total_tokens || 0;
+		const maxTokens = stats.max_tokens || 8000;
+		const percentage = (usedTokens / maxTokens) * 100;
+
+		document.getElementById('context-tokens-used').textContent = usedTokens;
+		document.getElementById('context-tokens-max').textContent = maxTokens;
+		
+		const progressBar = document.getElementById('token-progress-bar');
+		progressBar.style.width = `${percentage}%`;
+		
+		// Update color based on usage
+		progressBar.classList.remove('warning', 'danger');
+		if (percentage > 90) {
+			progressBar.classList.add('danger');
+		} else if (percentage > 70) {
+			progressBar.classList.add('warning');
+		}
+	}
+
+	openAgentContextModal() {
+		// Set the current session ID for agent context
+		const sessionId = document.getElementById('agent-context-session').value || 'agent_session';
+		this.currentContextSession = sessionId;
+		
+		// Load context items for this session
+		this.loadContextItems();
+		
+		// Show the context bucket sidebar
+		const contextBucket = document.getElementById('context-bucket');
+		contextBucket.classList.remove('hidden');
+		
+		// Update session ID display in sidebar
+		const sessionDisplay = document.getElementById('context-session-id');
+		if (sessionDisplay) {
+			sessionDisplay.textContent = sessionId;
+		}
+		
+		this.showToast(`Managing context for session: ${sessionId}`, 'info');
+		
+		// Update context summary
+		this.updateAgentContextSummary();
+	}
+
+	async updateAgentContextSummary() {
+		const sessionId = document.getElementById('agent-context-session').value || 'agent_session';
+		
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/summary`);
+			const data = await response.json();
+			
+			if (data.success) {
+				const summary = data.summary;
+				const countElement = document.querySelector('#agent-context-summary .context-count');
+				const tokensElement = document.querySelector('#agent-context-summary .context-tokens');
+				
+				if (countElement) {
+					countElement.textContent = `${summary.total_items} context items`;
+				}
+				if (tokensElement) {
+					tokensElement.textContent = `${summary.total_tokens} tokens`;
+				}
+			}
+		} catch (error) {
+			console.error('Failed to update agent context summary:', error);
+		}
+	}
+
+	showAddContextModal() {
+		const modal = document.getElementById('context-add-modal');
+		modal.classList.remove('hidden');
+		
+		// Clear form
+		document.getElementById('context-type').value = 'document';
+		document.getElementById('context-title').value = '';
+		document.getElementById('context-content').value = '';
+		document.getElementById('context-priority').value = 'medium';
+		document.getElementById('context-tags').value = '';
+		document.getElementById('context-source').value = '';
+	}
+
+	async saveContextItem() {
+		const type = document.getElementById('context-type').value;
+		const title = document.getElementById('context-title').value.trim();
+		const content = document.getElementById('context-content').value.trim();
+		const priority = document.getElementById('context-priority').value;
+		const tags = document.getElementById('context-tags').value
+			.split(',')
+			.map(tag => tag.trim())
+			.filter(tag => tag.length > 0);
+		const source = document.getElementById('context-source').value.trim();
+
+		if (!title || !content) {
+			this.showToast('Title and content are required', 'error');
+			return;
+		}
+
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/add`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					type,
+					title,
+					content,
+					priority,
+					tags,
+					source: source || undefined
+				})
+			});
+
+			const result = await response.json();
+			
+			if (result.success) {
+				this.showToast('Context item added successfully', 'success');
+				this.closeContextModal();
+				this.loadContextItems();
+			} else {
+				this.showToast(result.message || 'Failed to add context item', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to save context item:', error);
+			this.showToast('Failed to save context item', 'error');
+		}
+	}
+
+	closeContextModal() {
+		document.getElementById('context-add-modal').classList.add('hidden');
+	}
+
+	async deleteContextItem(itemId) {
+		if (!confirm('Are you sure you want to delete this context item?')) {
+			return;
+		}
+
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/items/${itemId}`, {
+				method: 'DELETE'
+			});
+
+			const result = await response.json();
+			
+			if (result.success) {
+				this.showToast('Context item deleted', 'success');
+				this.loadContextItems();
+			} else {
+				this.showToast('Failed to delete context item', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to delete context item:', error);
+			this.showToast('Failed to delete context item', 'error');
+		}
+	}
+
+	async clearContextBucket() {
+		if (!confirm('Are you sure you want to clear all context items?')) {
+			return;
+		}
+
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/clear`, {
+				method: 'POST'
+			});
+
+			const result = await response.json();
+			
+			if (result.success) {
+				this.showToast('Context bucket cleared', 'success');
+				this.loadContextItems();
+			} else {
+				this.showToast('Failed to clear context bucket', 'error');
+			}
+		} catch (error) {
+			console.error('Failed to clear context bucket:', error);
+			this.showToast('Failed to clear context bucket', 'error');
+		}
+	}
+
+	async exportContextBucket() {
+		try {
+			const response = await fetch(`${this.apiBase}/api/context-bucket/export`);
+			const data = await response.json();
+			
+			// Create and download JSON file
+			const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `context-bucket-${new Date().toISOString().split('T')[0]}.json`;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+			
+			this.showToast('Context bucket exported', 'success');
+		} catch (error) {
+			console.error('Failed to export context bucket:', error);
+			this.showToast('Failed to export context bucket', 'error');
+		}
+	}
+
+	showImportContextModal() {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = '.json';
+		
+		input.onchange = async (e) => {
+			const file = e.target.files[0];
+			if (!file) return;
+			
+			try {
+				const text = await file.text();
+				const data = JSON.parse(text);
+				
+				const response = await fetch(`${this.apiBase}/api/context-bucket/import`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(data)
+				});
+				
+				const result = await response.json();
+				
+				if (result.success) {
+					this.showToast('Context bucket imported successfully', 'success');
+					this.loadContextItems();
+				} else {
+					this.showToast('Failed to import context bucket', 'error');
+				}
+			} catch (error) {
+				console.error('Failed to import context bucket:', error);
+				this.showToast('Invalid context bucket file', 'error');
+			}
+		};
+		
+		input.click();
+	}
+
+	// Helper method for editing context items (placeholder for future implementation)
+	editContextItem(itemId) {
+		// TODO: Implement edit functionality
+		this.showToast('Edit functionality coming soon', 'info');
 	}
 }
 
@@ -2117,3 +2291,12 @@ Only return the refined prompt text, nothing else.`;
 document.addEventListener('DOMContentLoaded', () => {
 	window.app = new FFTerminalApp();
 });
+
+// Global functions for context modal
+window.closeContextModal = function() {
+	window.app.closeContextModal();
+};
+
+window.saveContextItem = function() {
+	window.app.saveContextItem();
+};

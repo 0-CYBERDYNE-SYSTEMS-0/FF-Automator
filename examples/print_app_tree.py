@@ -18,24 +18,24 @@ async def print_app_tree(app_name: str):
 		controller = Controller()
 		# Initialize the UI tree builder
 		builder = MacUITreeBuilder()
-		
+
 		# Get the workspace to launch app directly
 		workspace = Cocoa.NSWorkspace.sharedWorkspace()
-		
+
 		# Format app name and bundle ID
 		formatted_app_name = app_name.capitalize()
 		bundle_id = f'com.apple.{app_name.lower()}'
-		
+
 		print(f'\nLaunching {formatted_app_name} app...')
 		success = workspace.launchApplication_(formatted_app_name)
-		
+
 		if not success:
 			print(f'❌ Failed to launch {formatted_app_name} app')
 			return
-			
+
 		# Give the app a moment to launch
 		await asyncio.sleep(1)
-		
+
 		# Find the app's PID
 		app_pid = None
 		for app in workspace.runningApplications():
@@ -45,22 +45,22 @@ async def print_app_tree(app_name: str):
 				app_pid = app.processIdentifier()
 				print(f'PID: {app_pid}')
 				break
-				
+
 		if not app_pid:
 			print(f'❌ Could not find {formatted_app_name} app')
 			return
-			
+
 		# Activate the app
 		for app in workspace.runningApplications():
 			if app.processIdentifier() == app_pid:
 				app.activateWithOptions_(Cocoa.NSApplicationActivateIgnoringOtherApps)
 				break
-				
+
 		await asyncio.sleep(1)  # Give it a moment to activate
-		
+
 		# Build and print the UI tree
 		root = await builder.build_tree(app_pid)
-		
+
 		if root:
 			print(f'\n✅ Successfully built UI tree for {formatted_app_name}!')
 			print(f'Number of root children: {len(root.children)}')
@@ -81,6 +81,7 @@ async def print_app_tree(app_name: str):
 	except Exception as e:
 		print(f'❌ Error: {e}')
 		import traceback
+
 		traceback.print_exc()
 	finally:
 		if 'builder' in locals():
