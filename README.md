@@ -1,4 +1,4 @@
-# FF-Automator 🚀
+# FF-Automator 
 
 <div align="center">
   <img src="./static/macos-use.png" alt="FF-Automator Logo" width="full">
@@ -12,23 +12,23 @@
 
 ---
 
-## 🌟 Major Features
+##  Major Features
 
-### 🖥️ Native macOS Desktop Application
+###  Native macOS Desktop Application
 - **Go/Wails-based native app** for seamless macOS integration
 - **No browser conflicts** - runs independently of web automation tasks
 - **System integration** with menu bar and dock support
 - **Complete feature parity** with web interface
 - **Better performance** with direct system access
 
-### 🌐 Advanced Web Interface
+###  Advanced Web Interface
 - **Conversational chat** with autonomous multi-step execution
 - **Real-time streaming** with live progress updates
 - **Task queue system** for handling multiple requests
 - **Advanced controls**: interrupt, redirect, task refinement
 - **Session management** with persistent conversation history
 
-### 🤖 Comprehensive LLM Support
+###  Comprehensive LLM Support
 - **Cloud Providers**: 
   - OpenAI (GPT-4.1, o3, o4-mini, o3-pro, o4-mini-high, gpt-4o, gpt-4o-mini)
   - Anthropic (Claude 4 Opus/Sonnet, Claude 3.5 Sonnet/Haiku, Claude 3 series)
@@ -40,14 +40,14 @@
   - LM Studio (auto-detected, no API key needed)
 - **Smart fallback** and provider health checking
 
-### ⚡ Automation System
+###  Automation System
 - **Pre-built templates** for common macOS tasks
 - **Cron-based scheduling** with enable/disable controls
 - **Execution history** tracking success/failure rates
 - **Category and tag organization**
 - **Template duplication and customization**
 
-### 💻 Enhanced CLI
+###  Enhanced CLI
 - **Session management** with persistent history
 - **Command auto-completion** and history
 - **Streaming output** with real-time progress
@@ -56,7 +56,7 @@
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Option 1: Web Interface (Recommended)
 ```bash
@@ -86,7 +86,7 @@ python standalone_cli.py           # Standalone demo (no installation)
 
 ---
 
-## ⚙️ Installation & Setup
+##  Installation & Setup
 
 ### Requirements
 - **macOS** (accessibility permissions required)
@@ -114,7 +114,7 @@ Get your API keys from:
 
 ---
 
-## 🎯 Usage Examples
+##  Usage Examples
 
 ### Conversational Automation
 Try these complex multi-step commands:
@@ -144,7 +144,7 @@ Set up automated tasks with cron expressions:
 
 ---
 
-## 🔧 Technical Architecture
+##  Technical Architecture
 
 ### Core Components
 - **`mlx_use/agent/`**: AI agent logic and LLM conversation management
@@ -164,7 +164,7 @@ Set up automated tasks with cron expressions:
 
 ---
 
-## 🧪 Testing & Development
+##  Testing & Development
 
 ### Running Tests
 ```bash
@@ -193,7 +193,7 @@ python test_providers.py           # Test all LLM providers
 
 ---
 
-## 🔒 Security & Privacy
+##  Security & Privacy
 
 ### Security Features
 - **No credentials stored** in repository
@@ -210,7 +210,7 @@ python test_providers.py           # Test all LLM providers
 
 ---
 
-## 🌐 Model Recommendations
+##  Model Recommendations
 
 ### By Task Type
 - **Reasoning Tasks**: o3, o3-pro, Claude 4 Opus, deepseek-reasoner, Gemini 2.5 Pro
@@ -228,9 +228,9 @@ python test_providers.py           # Test all LLM providers
 
 ---
 
-## 📋 Roadmap
+##  Roadmap
 
-### Completed ✅
+### Completed 
 - [x] Enhanced conversational chat interface with multi-step autonomous execution
 - [x] Comprehensive LLM provider support (OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, LM Studio)
 - [x] Web interface with real-time streaming and interactive controls
@@ -240,13 +240,13 @@ python test_providers.py           # Test all LLM providers
 - [x] Automation templates and scheduling system
 - [x] Enhanced CLI with session management and auto-completion
 
-### In Progress 🔄
+### In Progress 
 - [ ] Refine agent prompting for improved reliability
 - [ ] Enhanced self-correction mechanisms
 - [ ] User input prompts for interactive workflows
 - [ ] Performance optimizations and cost reduction
 
-### Future Plans 🔮
+### Future Plans 
 - [ ] MLX and mlx-vlm integration for local inference
 - [ ] Fine-tuned small model for on-device operation
 - [ ] iPhone/iPad support expansion
@@ -254,7 +254,7 @@ python test_providers.py           # Test all LLM providers
 
 ---
 
-## ⚠️ Important Notes
+##  Important Notes
 
 ### Accessibility Permissions
 FF-Automator requires macOS accessibility permissions to interact with applications. Grant permissions when prompted for full functionality.
@@ -270,7 +270,7 @@ This is an advanced automation tool that can:
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 We welcome contributions! Feel free to:
 - Submit pull requests for new features or bug fixes
@@ -280,7 +280,7 @@ We welcome contributions! Feel free to:
 
 ---
 
-## 📞 Support & Community
+##  Support & Community
 
 - **Issues**: [GitHub Issues](https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator/discussions)
@@ -288,13 +288,13 @@ We welcome contributions! Feel free to:
 
 ---
 
-## 📄 License
+##  License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
 <div align="center">
-  <h3>🚀 Advanced macOS automation framework with AI-powered natural language control</h3>
+  <h3> Advanced macOS automation framework with AI-powered natural language control</h3>
   <p>Tell your Mac what to do, and watch it happen across ANY app.</p>
 </div>
