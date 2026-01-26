@@ -1,5 +1,4 @@
-# FF-Automator 
-
+# FF-Automator
 <div align="center">
   <img src="./static/macos-use.png" alt="FF-Automator Logo" width="full">
   
@@ -13,7 +12,6 @@
 ---
 
 ##  Major Features
-
 ###  Native macOS Desktop Application
 - **Go/Wails-based native app** for seamless macOS integration
 - **No browser conflicts** - runs independently of web automation tasks
@@ -57,14 +55,12 @@
 ---
 
 ##  Quick Start
-
 ### Option 1: Web Interface (Recommended)
 ```bash
 git clone https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator.git
 cd FF-Automator
 cp .env.example .env  # Add your API keys
 python web_interface_app.py
-```
 
 Open [http://127.0.0.1:8080](http://127.0.0.1:8080) in your browser.
 
@@ -76,18 +72,15 @@ make build    # Development build
 make dev      # Development with hot reload
 make build-prod  # Production .app bundle
 make dmg      # Create DMG installer
-```
 
 ### Option 3: Enhanced CLI
 ```bash
 python mlx_use_cli.py              # Full-featured CLI
 python standalone_cli.py           # Standalone demo (no installation)
-```
 
 ---
 
 ##  Installation & Setup
-
 ### Requirements
 - **macOS** (accessibility permissions required)
 - **Python 3.11+**
@@ -102,7 +95,6 @@ uv pip install --editable .
 # Copy and configure environment
 cp .env.example .env
 open .env  # Add your API keys
-```
 
 ### API Keys Configuration
 Get your API keys from:
@@ -115,7 +107,6 @@ Get your API keys from:
 ---
 
 ##  Usage Examples
-
 ### Conversational Automation
 Try these complex multi-step commands:
 
@@ -124,7 +115,6 @@ Try these complex multi-step commands:
 "Go to GitHub, find trending repositories, and create a note with the top 3"  
 "Check my system information and create an email draft with the details"
 "Open Excel, create a budget spreadsheet, and add sample categories"
-```
 
 ### Automation Templates
 Access pre-built templates for:
@@ -140,12 +130,10 @@ Set up automated tasks with cron expressions:
 "0 9 * * 1-5"  # Every weekday at 9 AM
 "*/30 * * * *"  # Every 30 minutes
 "0 0 1 * *"     # First day of every month
-```
 
 ---
 
 ##  Technical Architecture
-
 ### Core Components
 - **`mlx_use/agent/`**: AI agent logic and LLM conversation management
 - **`mlx_use/controller/`**: Action orchestration and registry system
@@ -165,7 +153,6 @@ Set up automated tasks with cron expressions:
 ---
 
 ##  Testing & Development
-
 ### Running Tests
 ```bash
 pytest                    # All tests
@@ -174,14 +161,12 @@ pytest -m integration    # Integration tests only
 pytest -m slow           # Slow tests only
 pytest -v --tb=short     # Verbose output
 pytest -m "not slow"     # Skip slow tests
-```
 
 ### Code Quality
 ```bash
 ruff format .             # Format code (single quotes, tabs, 130 char limit)
 ruff check .              # Lint code
 ruff check --fix .        # Fix auto-fixable issues
-```
 
 ### Development Commands
 ```bash
@@ -189,12 +174,10 @@ python examples/try.py              # Interactive agent demo
 python examples/calculate.py        # Calculator automation
 python examples/excel.py           # Excel automation demo
 python test_providers.py           # Test all LLM providers
-```
 
 ---
 
 ##  Security & Privacy
-
 ### Security Features
 - **No credentials stored** in repository
 - **Comprehensive .gitignore** protecting sensitive data
@@ -211,7 +194,6 @@ python test_providers.py           # Test all LLM providers
 ---
 
 ##  Model Recommendations
-
 ### By Task Type
 - **Reasoning Tasks**: o3, o3-pro, Claude 4 Opus, deepseek-reasoner, Gemini 2.5 Pro
 - **Coding Tasks**: gpt-4.1, Claude 4 Sonnet, deepseek-chat, Gemini 2.5 Flash
@@ -229,8 +211,7 @@ python test_providers.py           # Test all LLM providers
 ---
 
 ##  Roadmap
-
-### Completed 
+### Completed
 - [x] Enhanced conversational chat interface with multi-step autonomous execution
 - [x] Comprehensive LLM provider support (OpenAI, Anthropic, Google, DeepSeek, OpenRouter, Ollama, LM Studio)
 - [x] Web interface with real-time streaming and interactive controls
@@ -240,22 +221,21 @@ python test_providers.py           # Test all LLM providers
 - [x] Automation templates and scheduling system
 - [x] Enhanced CLI with session management and auto-completion
 
-### In Progress 
-- [ ] Refine agent prompting for improved reliability
-- [ ] Enhanced self-correction mechanisms
-- [ ] User input prompts for interactive workflows
-- [ ] Performance optimizations and cost reduction
+### In Progress
+-  Refine agent prompting for improved reliability
+-  Enhanced self-correction mechanisms
+-  User input prompts for interactive workflows
+-  Performance optimizations and cost reduction
 
-### Future Plans 
-- [ ] MLX and mlx-vlm integration for local inference
-- [ ] Fine-tuned small model for on-device operation
-- [ ] iPhone/iPad support expansion
-- [ ] Advanced automation workflow builder
+### Future Plans
+-  MLX and mlx-vlm integration for local inference
+-  Fine-tuned small model for on-device operation
+-  iPhone/iPad support expansion
+-  Advanced automation workflow builder
 
 ---
 
 ##  Important Notes
-
 ### Accessibility Permissions
 FF-Automator requires macOS accessibility permissions to interact with applications. Grant permissions when prompted for full functionality.
 
@@ -271,7 +251,6 @@ This is an advanced automation tool that can:
 ---
 
 ##  Contributing
-
 We welcome contributions! Feel free to:
 - Submit pull requests for new features or bug fixes
 - Open issues for bug reports or feature requests
@@ -281,7 +260,6 @@ We welcome contributions! Feel free to:
 ---
 
 ##  Support & Community
-
 - **Issues**: [GitHub Issues](https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/0-CYBERDYNE-SYSTEMS-0/FF-Automator/discussions)
 - **Documentation**: See CLAUDE.md for detailed technical documentation
@@ -289,7 +267,6 @@ We welcome contributions! Feel free to:
 ---
 
 ##  License
-
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
